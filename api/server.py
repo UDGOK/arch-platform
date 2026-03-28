@@ -727,3 +727,72 @@ def supported_formats():
             "4. Generate IBC-compliant drawing set."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Floor Plan Generator endpoint
+# ---------------------------------------------------------------------------
+
+class FloorPlanRequest(BaseModel):
+    description:   str  = Field(..., min_length=10, description="Natural language floor plan description")
+    project_name:  str  = "My Project"
+    building_type: str  = "Commercial"
+    primary_code:  str  = "IBC 2023"
+    jurisdiction:  str  = ""
+    api_key:       str  = ""   # NVIDIA NIM key for LLM parsing
+
+
+@app.post("/api/generate/floorplan")
+def generate_floorplan(req: FloorPlanRequest):
+    """
+    Generate a real 2D floor plan from a text description.
+
+    Pipeline:
+      1. LLM (Llama 3.1 via NVIDIA NIM) parses description → room program
+      2. Python layout algorithm places rooms with IBC-compliant dimensions
+      3. Python SVG generator draws walls, doors, windows, dimensions, labels
+      4. ezdxf exports AutoCAD DXF
+
+    Returns SVG string + base64 DXF + room list + occupant loads.
+    """
+    from floorplan_generator import generate_floor_plan
+    import base64
+
+    try:
+        fp = generate_floor_plan(
+            description   = req.description,
+            project_name  = req.project_name,
+            building_type = req.building_type,
+            primary_code  = req.primary_code,
+            jurisdiction  = req.jurisdiction,
+            api_key       = req.api_key,
+        )
+    except Exception as exc:
+        logger.exception("Floor plan generation error")
+        raise HTTPException(500, detail=f"Floor plan generation failed: {exc}")
+
+    if not fp.svg_data:
+        raise HTTPException(422, detail="Could not generate floor plan from description. Add more room details.")
+
+    return {
+        "project_name":   fp.project_name,
+        "building_type":  fp.building_type,
+        "building_w_ft":  fp.building_w,
+        "building_d_ft":  fp.building_d,
+        "total_sqft":     fp.total_sqft,
+        "occupant_load":  fp.occupant_load,
+        "room_count":     len(fp.rooms),
+        "rooms": [{
+            "name":         r.name,
+            "sqft":         r.sqft,
+            "width_ft":     r.width,
+            "depth_ft":     r.depth,
+            "zone":         r.zone,
+            "occupant_load": r.occupant_load,
+        } for r in fp.rooms],
+        "svg_data":       fp.svg_data,
+        "dxf_b64":        base64.b64encode(fp.dxf_data).decode() if fp.dxf_data else "",
+        "parser_mode":    "llm" if req.api_key else "keyword",
+        "warnings":       fp.warnings,
+        "program":        fp.program,
+    }

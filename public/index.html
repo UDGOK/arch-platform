@@ -276,6 +276,23 @@ textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
 .room-tag{background:rgba(74,158,255,.07);border:1px solid rgba(74,158,255,.18);border-radius:3px;padding:1px 5px;font-size:.64rem;color:var(--text3)}
 .parse-preview{width:100%;border-radius:var(--r);margin-top:7px;cursor:pointer;border:1px solid var(--border);display:block}
 .rvt-note{background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);padding:7px 9px;font-size:.7rem;color:var(--warn);line-height:1.65;margin-top:6px}
+
+/* Floor plan generator */
+.fp-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:20px}
+.fp-svg-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:auto;max-height:70vh;margin-top:16px;text-align:center;padding:16px}
+.fp-svg-wrap svg{max-width:100%;height:auto}
+.fp-rooms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:12px}
+.fp-room-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px}
+.fp-room-name{font-size:.78rem;font-weight:700}
+.fp-room-meta{font-size:.7rem;color:var(--text4);margin-top:2px}
+.fp-room-sf{font-size:.72rem;color:var(--accent);font-weight:700}
+.fp-stats{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.fp-stat{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 14px;text-align:center}
+.fp-stat .n{font-size:1.1rem;font-weight:700;color:var(--accent)}
+.fp-stat .l{font-size:.68rem;color:var(--text4)}
+.gen-btn{background:linear-gradient(135deg,#1a3a5c,#0f2040);border:1px solid var(--accent);color:var(--accent);padding:10px 20px;border-radius:var(--r);font-size:.85rem;font-weight:700;cursor:pointer;transition:.15s;width:100%;margin-top:8px}
+.gen-btn:hover{background:rgba(74,158,255,.15)}
+.gen-btn:disabled{opacity:.4;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -428,10 +445,67 @@ textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
 
 <!-- MAIN RESULTS -->
 <main>
-  <div class="results-wrap" id="resultsWrap">
+  <!-- Main tab bar -->
+  <div style="display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
+    <button class="tab on" onclick="mainTab('results',this)" style="flex:none;padding:12px 20px">📐 Results</button>
+    <button class="tab" onclick="mainTab('floorplan',this)" style="flex:none;padding:12px 20px">🏗 Floor Plan Generator</button>
+  </div>
+
+  <!-- Results panel -->
+  <div id="mainPanel-results" class="results-wrap" style="flex:1;overflow-y:auto;padding:20px">
     <div class="empty" id="emptyState">
       <div class="empty-icon">📐</div>
-      <p>Upload a sketch or configure your project,<br>then click <strong>Generate with NVIDIA NIM</strong><br>to run the 3-stage AI pipeline.</p>
+      <p>Configure your project in the sidebar,<br>then click <strong>Generate with NVIDIA NIM</strong><br>to run the 3-stage AI pipeline.</p>
+    </div>
+  </div>
+
+  <!-- Floor Plan Generator panel -->
+  <div id="mainPanel-floorplan" style="display:none;flex:1;overflow-y:auto;padding:20px">
+    <div class="fp-panel">
+      <div class="card-hdr" style="margin-bottom:14px">
+        <div class="card-ico nim-ico">🏗</div>
+        <div>
+          <div class="card-t">Floor Plan Generator</div>
+          <div class="card-s">Describe any building → get a real dimensioned 2D floor plan + DXF</div>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Describe your floor plan <span class="req">*</span></label>
+        <textarea id="fpDesc" rows="4" placeholder="e.g. 3 private offices 12x14, 1 open office 40x30, conference room 18x20, lobby, 2 restrooms, corridor, 5000 sq ft&#10;or: 3 bedroom 2 bathroom house, master bedroom 14x16, open plan kitchen/living, 2000 sq ft"></textarea>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <div class="fg"><label>Project Name</label>
+          <input type="text" id="fpName" value="My Project"/></div>
+        <div class="fg"><label>Code</label>
+          <select id="fpCode"><option>IBC 2023</option><option>CBC 2022</option><option>IBC 2021</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>Building Type</label>
+          <div class="rg" id="fpBtg">
+            <div class="ro on" data-v="Commercial" onclick="pickRadio('fpBtg',this)">Commercial</div>
+            <div class="ro" data-v="Residential" onclick="pickRadio('fpBtg',this)">Residential</div>
+          </div>
+        </div>
+        <div class="fg"><label>Jurisdiction</label>
+          <input type="text" id="fpJur" placeholder="e.g. Chicago, IL"/></div>
+      </div>
+      <div class="fg" style="margin-top:4px">
+        <label>NVIDIA API Key <span style="font-weight:400;color:var(--text4)">(for LLM parsing — optional, uses keyword fallback if blank)</span></label>
+        <input type="password" id="fpKey" placeholder="nvapi-… (uses keyword parser if blank)"/>
+      </div>
+      <button class="gen-btn" id="fpBtn" onclick="generateFloorPlan()">⚡ Generate Floor Plan</button>
+      <div id="fpStatus" style="font-size:.75rem;color:var(--text3);margin-top:6px;text-align:center"></div>
+    </div>
+
+    <div id="fpResult" style="display:none;margin-top:16px">
+      <div class="fp-stats" id="fpStats"></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn-export btn-pdf" id="fpDlSvg" onclick="downloadFpSvg()" style="padding:7px 16px">⬇ Download SVG</button>
+        <button class="btn-export btn-dxf" id="fpDlDxf" onclick="downloadFpDxf()" style="padding:7px 16px">⬇ Download DXF</button>
+      </div>
+      <div class="fp-svg-wrap" id="fpSvgWrap"></div>
+      <div class="fp-rooms-grid" id="fpRoomsGrid"></div>
     </div>
   </div>
 
@@ -441,7 +515,11 @@ textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
       <div class="chat-hdr">
         <span>💬</span> Conversational Refinement
         <span style="font-size:.72rem;color:var(--text4);margin-left:6px;font-weight:400">Powered by Llama 3.1 70B</span>
-        <select id="sheetSelect" style="margin-left:auto;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 7px;font-size:.72rem"></select>
+        <span id="chatKeyNotice" style="margin-left:auto;font-size:.68rem;color:var(--warn);display:none">⚠ Add NVIDIA API key in Engine tab</span>
+      </div>
+      <div style="background:var(--surface2);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:.7rem;color:var(--text4);white-space:nowrap">Active sheet:</span>
+        <select id="sheetSelect" style="flex:1;background:var(--surface3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 8px;font-size:.75rem;font-family:var(--mono)" onchange="selectSheet(parseInt(this.value))"></select>
       </div>
       <div class="chat-body" id="chatBody"></div>
       <div class="chat-input">
@@ -780,8 +858,8 @@ async function post(url, body) {
 
 // ── Render ────────────────────────────────────────────────────────────────
 function show(html) {
-  document.getElementById('emptyState').style.display = 'none';
-  document.getElementById('resultsWrap').innerHTML = html;
+  (document.getElementById('emptyState') && (document.getElementById('emptyState').style.display = 'none'));
+  document.getElementById('mainPanel-results').innerHTML = html;
 }
 
 function renderNIMResults(d) {
@@ -968,7 +1046,18 @@ function setupChat(drawings) {
   if (!drawings?.length) return;
   const sel = document.getElementById('sheetSelect');
   sel.innerHTML = drawings.map((d,i) =>
-    `<option value="${i}">${d.sheet_number} – ${d.title?.slice(0,30)}</option>`
+    `<option value="${i}">${d.sheet_number} – ${d.title||'Sheet'}</option>`
+  ).join('');
+  document.getElementById('chatSection').style.display = 'flex';
+  chatHistory = []; currentSheetIdx = 0;
+  // Show key notice if no API key entered
+  const hasKey = document.getElementById('apiKey')?.value?.trim();
+  const notice = document.getElementById('chatKeyNotice');
+  if (notice) notice.style.display = hasKey ? 'none' : 'inline';
+  document.getElementById('chatBody').innerHTML =
+    `<div class="msg msg-ai">✅ ${drawings.length} sheet(s) generated. Select a sheet above, then ask me to refine it — add code notes, update egress requirements, adjust ADA details, or change dimensions.</div>` +
+    (hasKey ? '' : `<div class="msg msg-ai" style="border-color:var(--warn);color:var(--warn)">⚠ Chat refinement requires a NVIDIA API key. Add it in the <strong>Engine</strong> tab, then regenerate.</div>`);
+}">${d.sheet_number} – ${d.title||"Sheet"}</option>`
   ).join('');
   document.getElementById('chatSection').style.display = 'flex';
   chatHistory = [];
@@ -1186,6 +1275,109 @@ async function downloadPackage() {
     toast('Construction package downloaded (' + lastJob.drawing_count + ' sheets)', 'nim');
   } catch(e) { toast('Package export failed: ' + e.message, 'err'); log(e.message,'e'); }
   finally { if (btn) btn.classList.remove('exporting'); }
+}
+
+
+// ── Main tab switcher ─────────────────────────────────────────────────────
+function mainTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  ['results','floorplan'].forEach(n => {
+    const p = document.getElementById('mainPanel-' + n);
+    if (p) p.style.display = n === name ? (n==='results'?'block':'block') : 'none';
+  });
+}
+
+// ── Floor Plan Generator ──────────────────────────────────────────────────
+let fpData = null;
+
+async function generateFloorPlan() {
+  const desc = document.getElementById('fpDesc').value.trim();
+  if (!desc || desc.length < 10) { toast('Describe your floor plan first','err'); return; }
+
+  const btn = document.getElementById('fpBtn');
+  btn.disabled = true;
+  document.getElementById('fpStatus').textContent = 'Parsing description…';
+  document.getElementById('fpResult').style.display = 'none';
+  log('Generating floor plan from description…','n');
+
+  try {
+    const body = {
+      description:   desc,
+      project_name:  document.getElementById('fpName').value || 'My Project',
+      building_type: radio('fpBtg'),
+      primary_code:  document.getElementById('fpCode').value,
+      jurisdiction:  document.getElementById('fpJur').value,
+      api_key:       document.getElementById('fpKey').value,
+    };
+    document.getElementById('fpStatus').textContent = body.api_key ? 'LLM parsing rooms (Llama 3.1)…' : 'Keyword parsing rooms…';
+
+    const resp = await fetch(API+'/api/generate/floorplan',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    });
+    if (!resp.ok) { const e=await resp.json(); throw new Error(e.detail||'Generation failed'); }
+    const data = await resp.json();
+    fpData = data;
+    renderFloorPlan(data);
+    log(`Floor plan: ${data.room_count} rooms, ${data.total_sqft?.toFixed(0)} SF, ${data.building_w_ft?.toFixed(0)}x${data.building_d_ft?.toFixed(0)}ft`,'s');
+    toast(`Floor plan generated – ${data.room_count} rooms, ${data.total_sqft?.toFixed(0)} SF`,'nim');
+    document.getElementById('fpStatus').textContent = `✓ ${data.room_count} rooms · ${data.total_sqft?.toFixed(0)} SF · ${data.building_w_ft?.toFixed(0)}×${data.building_d_ft?.toFixed(0)} ft  (${data.parser_mode} parser)`;
+  } catch(e) {
+    toast(e.message,'err'); log(e.message,'e');
+    document.getElementById('fpStatus').textContent = '✗ ' + e.message;
+  } finally { btn.disabled = false; }
+}
+
+function renderFloorPlan(data) {
+  // Stats bar
+  document.getElementById('fpStats').innerHTML = [
+    ['Rooms', data.room_count],
+    ['Total SF', data.total_sqft?.toFixed(0)],
+    ['Occupants', data.occupant_load],
+    ['Building', `${data.building_w_ft?.toFixed(0)}×${data.building_d_ft?.toFixed(0)} ft`],
+    ['Parser', data.parser_mode],
+  ].map(([l,v]) => `<div class="fp-stat"><div class="n">${v}</div><div class="l">${l}</div></div>`).join('');
+
+  // SVG
+  document.getElementById('fpSvgWrap').innerHTML = data.svg_data || '<p>No SVG generated</p>';
+
+  // Room cards
+  document.getElementById('fpRoomsGrid').innerHTML = (data.rooms||[]).map(r =>
+    `<div class="fp-room-card">
+      <div class="fp-room-name">${escHtml(r.name)}</div>
+      <div class="fp-room-sf">${r.sqft?.toFixed(0)} SF</div>
+      <div class="fp-room-meta">${r.width_ft?.toFixed(0)}×${r.depth_ft?.toFixed(0)} ft · ${r.zone}</div>
+      ${r.occupant_load>0 ? `<div class="fp-room-meta">${r.occupant_load} occupants</div>` : ''}
+    </div>`
+  ).join('');
+
+  document.getElementById('fpResult').style.display = 'block';
+
+  // Warnings
+  if (data.warnings?.length) {
+    data.warnings.forEach(w => toast(w,'info'));
+  }
+}
+
+function downloadFpSvg() {
+  if (!fpData?.svg_data) return;
+  const blob = new Blob([fpData.svg_data], {type:'image/svg+xml'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (fpData.project_name||'floorplan').replace(/\s+/g,'_') + '_A1.0.svg';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('SVG downloaded','ok');
+}
+
+function downloadFpDxf() {
+  if (!fpData?.dxf_b64) return;
+  const bytes = Uint8Array.from(atob(fpData.dxf_b64), c => c.charCodeAt(0));
+  const blob = new Blob([bytes], {type:'application/dxf'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (fpData.project_name||'floorplan').replace(/\s+/g,'_') + '_A1.0.dxf';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('DXF downloaded (AutoCAD compatible)','ok');
 }
 
 boot();
