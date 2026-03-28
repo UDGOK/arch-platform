@@ -405,3 +405,66 @@ if _static.exists():
     @app.get("/", include_in_schema=False)
     def serve_index():
         return FileResponse(str(_static / "index.html"))
+
+
+# ---------------------------------------------------------------------------
+# Export endpoints
+# ---------------------------------------------------------------------------
+
+from fastapi.responses import Response as FastAPIResponse
+
+class ExportRequest(BaseModel):
+    job: Dict[str, Any]
+
+
+@app.post("/api/export/pdf")
+def export_pdf(req: ExportRequest):
+    """Generate permit-ready PDF from completed job. Returns application/pdf."""
+    try:
+        from export_engine import PDFExporter
+        pdf_bytes = PDFExporter(req.job).generate()
+    except Exception as exc:
+        logger.exception("PDF export error")
+        raise HTTPException(500, detail=f"PDF export failed: {exc}")
+    project = req.job.get("project_name","project").replace(" ","_")[:40]
+    return FastAPIResponse(
+        content=pdf_bytes, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{project}_construction_documents.pdf"'},
+    )
+
+
+@app.post("/api/export/dxf/{sheet_index}")
+def export_dxf_sheet(sheet_index: int, req: ExportRequest):
+    """Generate single DXF sheet. sheet_index = 0-based index into drawings[]."""
+    drawings = req.job.get("drawings", [])
+    if sheet_index >= len(drawings):
+        raise HTTPException(404, detail=f"Sheet {sheet_index} out of range.")
+    try:
+        from export_engine import DXFExporter
+        dxf_bytes = DXFExporter(req.job).generate_sheet(drawings[sheet_index])
+    except Exception as exc:
+        logger.exception("DXF export error")
+        raise HTTPException(500, detail=f"DXF export failed: {exc}")
+    drw = drawings[sheet_index]
+    num = drw.get("sheet_number","X0").replace("/","_").replace(" ","_")
+    stype = drw.get("sheet_type","Sheet").replace(" ","_")
+    return FastAPIResponse(
+        content=dxf_bytes, media_type="application/dxf",
+        headers={"Content-Disposition": f'attachment; filename="{num}_{stype}.dxf"'},
+    )
+
+
+@app.post("/api/export/package")
+def export_package(req: ExportRequest):
+    """Generate ZIP with PDF + all DXF sheets + manifest.json."""
+    try:
+        from export_engine import build_export_package
+        zip_bytes = build_export_package(req.job)
+    except Exception as exc:
+        logger.exception("Package export error")
+        raise HTTPException(500, detail=f"Package export failed: {exc}")
+    project = req.job.get("project_name","project").replace(" ","_")[:40]
+    return FastAPIResponse(
+        content=zip_bytes, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{project}_construction_set.zip"'},
+    )
