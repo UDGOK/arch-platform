@@ -1,1 +1,0 @@
-﻿{"version":2,"rewrites":[{"source":"/api/(.*)","destination":"/api/server.py"},{"source":"/healthz","destination":"/api/server.py"},{"source":"/(.*)","destination":"/public/index.html"}]}
