@@ -435,28 +435,52 @@ def triton_infer(
     extra_headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
-    Synchronous wrapper around the async client.
-    Runs in the current thread's event loop if one exists,
-    otherwise creates a new one. Safe to call from sync code.
+    Synchronous HTTP POST using httpx.
+    Uses a simple sync client — safe for Vercel serverless, FastAPI, and
+    plain Python. The async TritonHTTPClient is used when calling infer_async
+    directly from async route handlers.
     """
-    client = get_triton_client()
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # We're inside an async context (FastAPI) — use a thread executor
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                future = ex.submit(
-                    lambda: asyncio.run(
-                        client.infer_async(endpoint, payload, api_key, extra_headers)
-                    )
+    import httpx
+
+    headers = {
+        "Content-Type":  "application/json",
+        "Accept":        "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+
+    cfg = DEFAULT_CONFIG
+    last_exc = None
+
+    for attempt in range(cfg.max_retries + 1):
+        import time, random, math
+        try:
+            with httpx.Client(timeout=cfg.read_timeout) as client:
+                resp = client.post(endpoint, json=payload, headers=headers)
+
+            if resp.status_code in cfg.retryable_status and attempt < cfg.max_retries:
+                wait = random.uniform(0, min(cfg.max_backoff_s,
+                                             cfg.base_backoff_s * (2 ** attempt)))
+                time.sleep(wait)
+                continue
+
+            if resp.status_code >= 400:
+                raise RuntimeError(
+                    f"HTTP {resp.status_code} from {endpoint}: {resp.text[:300]}"
                 )
-                return future.result(timeout=95)
-        else:
-            return loop.run_until_complete(
-                client.infer_async(endpoint, payload, api_key, extra_headers)
-            )
-    except RuntimeError:
-        return asyncio.run(
-            client.infer_async(endpoint, payload, api_key, extra_headers)
-        )
+
+            return resp.json()
+
+        except (httpx.TimeoutException, httpx.ConnectError) as exc:
+            last_exc = exc
+            if attempt < cfg.max_retries:
+                wait = random.uniform(0, min(cfg.max_backoff_s,
+                                             cfg.base_backoff_s * (2 ** attempt)))
+                time.sleep(wait)
+            else:
+                raise TimeoutError(
+                    f"Timed out after {cfg.max_retries} retries: {exc}"
+                ) from exc
+
+    raise RuntimeError(f"All retries exhausted: {last_exc}")

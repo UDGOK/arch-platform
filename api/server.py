@@ -397,6 +397,48 @@ def list_jobs():
     return {"jobs": list(_job_store.values()), "count": len(_job_store)}
 
 
+
+
+# ---------------------------------------------------------------------------
+# Debug endpoint - diagnose import and config issues on Vercel
+# ---------------------------------------------------------------------------
+
+@app.get("/api/debug")
+def debug_info():
+    """Returns import status and environment info for diagnosing Vercel issues."""
+    import sys, os
+    results = {"python": sys.version, "platform": sys.platform, "imports": {}, "env": {}}
+
+    libs = [
+        ("fastapi", "fastapi"),
+        ("compliance", "compliance"),
+        ("models", "models"),
+        ("orchestrator", "orchestrator"),
+        ("numpy", "numpy"),
+        ("httpx", "httpx"),
+        ("reportlab", "reportlab"),
+        ("ezdxf", "ezdxf"),
+        ("pdfplumber", "pdfplumber"),
+        ("pymupdf", "fitz"),
+        ("ifcopenshell", "ifcopenshell"),
+        ("export_engine", "export_engine"),
+        ("rag_engine", "rag_engine"),
+        ("triton_client", "triton_client"),
+        ("file_parser", "file_parser"),
+        ("nvidia_nim", "nvidia_nim"),
+    ]
+    for name, mod in libs:
+        try:
+            m = __import__(mod)
+            v = getattr(m, "__version__", getattr(m, "version", "ok"))
+            results["imports"][name] = str(v)[:30]
+        except Exception as e:
+            results["imports"][name] = f"FAIL: {str(e)[:80]}"
+
+    results["job_count"] = len(_job_store)
+    results["registered_engines"] = [e.value for e in EngineRegistry.available()]
+    return results
+
 # Static frontend
 _static = Path(__file__).parent.parent / "public"
 if _static.exists():
