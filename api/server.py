@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -552,4 +552,136 @@ def get_metrics():
         "triton_client": get_triton_client().metrics(),
         "service": "arch-platform",
         "version": "2.0.0",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Multi-format drawing upload endpoints
+# ---------------------------------------------------------------------------
+
+ALLOWED_UPLOAD_TYPES = {
+    "application/pdf":                          ".pdf",
+    "application/octet-stream":                 None,   # auto-detect from filename
+    "application/dxf":                          ".dxf",
+    "image/vnd.dxf":                            ".dxf",
+    "application/acad":                         ".dwg",
+    "application/x-dwg":                        ".dwg",
+    "application/x-autocad":                    ".dwg",
+    "application/vnd.ms-pki.stl":               ".rvt",
+}
+
+MAX_UPLOAD_MB = 100
+
+
+@app.post("/api/upload/drawing")
+async def upload_drawing(
+    file:               UploadFile = File(...),
+    aps_client_id:      str = Form(default=""),
+    aps_client_secret:  str = Form(default=""),
+):
+    """
+    Upload and parse a drawing file. Supported formats:
+      .dwg / .dxf  — AutoCAD (ezdxf)
+      .pdf         — PDF drawings (pdfplumber + PyMuPDF → PNG preview)
+      .ifc         — IFC BIM model (ifcopenshell)
+      .rvt         — Revit (Autodesk APS or text-scan fallback)
+
+    Returns ParsedDrawing JSON including:
+      - rooms, layers, text annotations, dimensions
+      - structural elements
+      - preview_image_b64 (PNG, for feeding into Vision AI)
+      - summary string ready for LLM prompt injection
+    """
+    filename = file.filename or "drawing"
+    ext      = ("." + filename.rsplit(".",1)[-1]).lower() if "." in filename else ""
+
+    allowed_exts = {".dwg", ".dxf", ".pdf", ".ifc", ".rvt"}
+    if ext not in allowed_exts:
+        raise HTTPException(
+            400,
+            detail=(
+                f"Unsupported file extension '{ext}'. "
+                f"Allowed: {', '.join(sorted(allowed_exts))}"
+            ),
+        )
+
+    raw = await file.read()
+    size_mb = len(raw) / 1024 / 1024
+    if size_mb > MAX_UPLOAD_MB:
+        raise HTTPException(413, detail=f"File too large ({size_mb:.1f} MB). Max {MAX_UPLOAD_MB} MB.")
+
+    logger.info("Drawing upload: %s  %.1f MB  ext=%s", filename, size_mb, ext)
+
+    from file_parser import parse_drawing_file
+    try:
+        parsed = parse_drawing_file(
+            raw, filename,
+            aps_client_id=aps_client_id,
+            aps_client_secret=aps_client_secret,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("File parse error")
+        raise HTTPException(500, detail=f"Parse error: {exc}")
+
+    return parsed.to_dict()
+
+
+@app.get("/api/upload/formats")
+def supported_formats():
+    """List all supported upload file formats with guidance."""
+    return {
+        "supported_formats": [
+            {
+                "extension": ".dwg",
+                "name":      "AutoCAD Drawing",
+                "parser":    "ezdxf",
+                "extracts":  ["layers", "text", "rooms", "dimensions", "extents", "preview_PNG"],
+                "max_size":  "100 MB",
+                "notes":     "Supports DWG and DXF (ASCII or binary). All AutoCAD versions.",
+            },
+            {
+                "extension": ".dxf",
+                "name":      "Drawing Exchange Format",
+                "parser":    "ezdxf",
+                "extracts":  ["layers", "text", "rooms", "dimensions", "extents", "preview_PNG"],
+                "max_size":  "100 MB",
+                "notes":     "ASCII or binary DXF. Export from AutoCAD, Revit, Rhino, SketchUp.",
+            },
+            {
+                "extension": ".pdf",
+                "name":      "PDF Drawing Set",
+                "parser":    "pdfplumber + PyMuPDF",
+                "extracts":  ["text", "rooms", "dimensions", "page_count", "preview_PNG"],
+                "max_size":  "100 MB",
+                "notes":     "Text-layer PDFs give best results. Scanned PDFs use OCR preview only.",
+            },
+            {
+                "extension": ".ifc",
+                "name":      "Industry Foundation Classes (BIM)",
+                "parser":    "ifcopenshell",
+                "extracts":  ["spaces", "storeys", "structural_elements", "element_counts"],
+                "max_size":  "100 MB",
+                "notes":     "Export from Revit: File → Export → IFC (IFC 2x3 or IFC4)",
+            },
+            {
+                "extension": ".rvt",
+                "name":      "Autodesk Revit",
+                "parser":    "Autodesk APS (requires credentials) or text-scan fallback",
+                "extracts":  ["rooms", "text_scan"],
+                "max_size":  "100 MB",
+                "notes":     (
+                    "Full parsing requires APS credentials (free at aps.autodesk.com). "
+                    "Without credentials: text-scan fallback. "
+                    "Recommended: export IFC from Revit for full parsing."
+                ),
+            },
+        ],
+        "workflow": (
+            "1. Upload drawing → GET parsed data + preview PNG. "
+            "2. Preview PNG is auto-fed into NIM Vision (Stage 1). "
+            "3. Extracted rooms/dims/layers injected into LLM manifest prompt (Stage 2). "
+            "4. Generate IBC-compliant drawing set."
+        ),
     }

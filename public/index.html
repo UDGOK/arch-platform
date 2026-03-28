@@ -255,6 +255,27 @@ textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
 .btn-zip:hover{transform:translateY(-1px);box-shadow:0 3px 12px rgba(118,185,0,.2)}
 .export-spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.2);border-top-color:currentColor;border-radius:50%;animation:spin .6s linear infinite;display:none}
 .exporting .export-spin{display:inline-block}
+
+/* Multi-format upload */
+.upload-panel{border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
+.upload-tabs{display:flex;background:var(--surface2);border-bottom:1px solid var(--border)}
+.upload-tab{flex:1;padding:7px 3px;background:none;border:none;color:var(--text4);cursor:pointer;font-size:.62rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid transparent;transition:.15s}
+.upload-tab.on{color:var(--accent);border-bottom-color:var(--accent);background:rgba(74,158,255,.06)}
+.upload-body{padding:10px}
+.upload-hint{font-size:.68rem;color:var(--text4);text-align:center;padding:3px 0 5px}
+.fmt-badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:.67rem;font-weight:700;font-family:var(--mono)}
+.fmt-dxf,.fmt-dwg{background:rgba(74,158,255,.12);color:var(--accent)}
+.fmt-pdf{background:rgba(239,68,68,.12);color:#fca5a5}
+.fmt-ifc{background:rgba(34,197,94,.12);color:var(--success)}
+.fmt-rvt{background:rgba(245,158,11,.12);color:var(--warn)}
+.parse-result{background:var(--surface2);border:1px solid var(--border3);border-radius:var(--r);padding:8px 10px;font-size:.72rem;line-height:1.85}
+.parse-row{display:flex;gap:6px;align-items:baseline}
+.parse-key{color:var(--text4);font-family:var(--mono);font-size:.66rem;min-width:60px}
+.parse-val{color:var(--text2)}
+.parse-rooms{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.room-tag{background:rgba(74,158,255,.07);border:1px solid rgba(74,158,255,.18);border-radius:3px;padding:1px 5px;font-size:.64rem;color:var(--text3)}
+.parse-preview{width:100%;border-radius:var(--r);margin-top:7px;cursor:pointer;border:1px solid var(--border);display:block}
+.rvt-note{background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);padding:7px 9px;font-size:.7rem;color:var(--warn);line-height:1.65;margin-top:6px}
 </style>
 </head>
 <body>
@@ -313,19 +334,38 @@ textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
       </div>
     </div>
 
-    <!-- Sketch Upload -->
-    <div class="sh">Sketch / Floor Plan Upload</div>
-    <div class="upload-zone" id="dropzone" ondragover="doDrag(event,true)" ondragleave="doDrag(event,false)" ondrop="doDrop(event)">
-      <input type="file" accept="image/jpeg,image/png" onchange="onFile(this)"/>
-      <div class="uz-icon">📐</div>
-      <div class="uz-label">Drop sketch or floor plan here</div>
-      <div class="uz-sub">JPG / PNG · max 10 MB · Vision AI will analyse it</div>
+    <!-- Multi-format Drawing Upload -->
+    <div class="sh">Upload Drawing File</div>
+    <div class="upload-panel">
+      <div class="upload-tabs">
+        <button class="upload-tab on" onclick="setUploadTab('dwg',this)">DWG/DXF</button>
+        <button class="upload-tab" onclick="setUploadTab('pdf',this)">PDF</button>
+        <button class="upload-tab" onclick="setUploadTab('ifc',this)">IFC</button>
+        <button class="upload-tab" onclick="setUploadTab('rvt',this)">RVT</button>
+      </div>
+      <div class="upload-body">
+        <div id="upload-hint-dwg" class="upload-hint">AutoCAD DWG/DXF · layers, rooms, dims, PNG preview</div>
+        <div id="upload-hint-pdf" class="upload-hint" style="display:none">PDF drawing set · text + page preview</div>
+        <div id="upload-hint-ifc" class="upload-hint" style="display:none">IFC BIM · spaces, storeys, structural</div>
+        <div id="upload-hint-rvt" class="upload-hint" style="display:none">Revit file · APS credentials or export IFC</div>
+        <div class="upload-zone" id="dropzone" ondragover="doDrag(event,true)" ondragleave="doDrag(event,false)" ondrop="doDrop(event)">
+          <input type="file" id="fileInput" accept=".dwg,.dxf,.pdf,.ifc,.rvt,image/jpeg,image/png" onchange="onFile(this)"/>
+          <div class="uz-icon" id="uploadIcon">📐</div>
+          <div class="uz-label">Drop file or click to browse</div>
+          <div class="uz-sub">DWG · DXF · PDF · IFC · RVT · max 100 MB</div>
+        </div>
+        <div id="rvtNote" class="rvt-note" style="display:none">
+          ⚠ Full RVT parsing needs APS credentials (free at aps.autodesk.com)<br>
+          Or: <strong>Revit → File → Export → IFC</strong> then upload the .ifc
+        </div>
+        <div id="apsFields" style="display:none;margin-top:8px;display:none">
+          <input type="text" id="apsClientId" placeholder="APS Client ID (optional)" style="margin-bottom:5px"/>
+          <input type="password" id="apsClientSecret" placeholder="APS Client Secret (optional)"/>
+        </div>
+        <div id="uploadStatus" style="font-size:.72rem;color:var(--text4);margin-top:5px"></div>
+        <div id="parseResult" class="parse-result" style="display:none"></div>
+      </div>
     </div>
-    <div class="upload-preview" id="preview">
-      <img id="previewImg" src="" alt="Sketch preview"/>
-      <button class="rm" onclick="clearUpload()">✕</button>
-    </div>
-    <div id="uploadStatus" style="font-size:.72rem;color:var(--text4);margin-top:3px"></div>
   </div>
 
   <!-- Code tab -->
@@ -545,7 +585,28 @@ function onEng() {
   document.getElementById('nimOpts').style.display = v === 'NVIDIA Picasso' ? 'flex' : 'none';
 }
 
-// ── File Upload ───────────────────────────────────────────────────────────
+// ── Multi-format Upload ────────────────────────────────────────────────
+let currentUploadTab = 'dwg';
+
+function setUploadTab(tab, btn) {
+  currentUploadTab = tab;
+  document.querySelectorAll('.upload-tab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  ['dwg','pdf','ifc','rvt'].forEach(t => {
+    const h = document.getElementById('upload-hint-'+t);
+    if (h) h.style.display = t===tab ? 'block' : 'none';
+  });
+  const rvtEl = document.getElementById('rvtNote');
+  if (rvtEl) rvtEl.style.display = tab==='rvt' ? 'block' : 'none';
+  const icons={dwg:'📐',pdf:'📄',ifc:'🏗',rvt:'⚡'};
+  const accepts={dwg:'.dwg,.dxf',pdf:'.pdf',ifc:'.ifc',rvt:'.rvt'};
+  const iconEl = document.getElementById('uploadIcon');
+  if (iconEl) iconEl.textContent = icons[tab]||'📂';
+  const fi = document.getElementById('fileInput');
+  if (fi) fi.accept = accepts[tab]||'.dwg,.dxf,.pdf,.ifc,.rvt';
+  clearUpload();
+}
+
 function doDrag(e, on) {
   e.preventDefault();
   document.getElementById('dropzone').classList.toggle('drag', on);
@@ -559,28 +620,73 @@ function doDrop(e) {
 function onFile(inp) { if (inp.files[0]) processFile(inp.files[0]); }
 
 async function processFile(file) {
-  if (!file.type.match(/image\/(jpeg|png)/)) { toast('Use JPG or PNG', 'err'); return; }
-  if (file.size > 10*1024*1024) { toast('File exceeds 10 MB', 'err'); return; }
-  document.getElementById('uploadStatus').textContent = 'Reading…';
-  const reader = new FileReader();
-  reader.onload = e => {
-    const dataUrl = e.target.result;
-    uploadedB64   = dataUrl.split(',')[1];
-    uploadedType  = file.type;
-    document.getElementById('previewImg').src = dataUrl;
-    document.getElementById('preview').style.display = 'block';
-    document.getElementById('dropzone').style.display = 'none';
-    document.getElementById('uploadStatus').textContent = `✓ ${file.name} (${(file.size/1024).toFixed(0)} KB) – ready for Vision analysis`;
-    log(`Sketch loaded: ${file.name}`, 's');
-    toast('Sketch loaded – Vision AI will analyse it in Stage 1', 'nim');
-  };
-  reader.readAsDataURL(file);
+  if (file.size > 100*1024*1024) { toast('File exceeds 100 MB','err'); return; }
+  const ext = file.name.split('.').pop().toLowerCase();
+  const isImage = ['jpg','jpeg','png'].includes(ext);
+  document.getElementById('uploadStatus').textContent = `Uploading ${file.name}…`;
+  document.getElementById('parseResult').style.display = 'none';
+  log(`Uploading: ${file.name} (${(file.size/1024).toFixed(0)} KB)`, 'i');
+
+  if (isImage) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      uploadedB64 = ev.target.result.split(',')[1];
+      uploadedType = file.type;
+      document.getElementById('uploadStatus').textContent = `✓ ${file.name} – sketch ready for Vision AI`;
+      log('Sketch ready for Stage 1 Vision','s');
+      toast('Sketch loaded for Vision AI','ok');
+    };
+    reader.readAsDataURL(file); return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  const apsId = document.getElementById('apsClientId')?.value||'';
+  const apsSec = document.getElementById('apsClientSecret')?.value||'';
+  if (apsId) formData.append('aps_client_id', apsId);
+  if (apsSec) formData.append('aps_client_secret', apsSec);
+
+  try {
+    const resp = await fetch(API+'/api/upload/drawing',{method:'POST',body:formData});
+    if (!resp.ok) { const err=await resp.json(); throw new Error(err.detail||`HTTP ${resp.status}`); }
+    handleParsedDrawing(await resp.json(), file.name);
+  } catch(e) {
+    document.getElementById('uploadStatus').textContent = `✗ ${e.message}`;
+    toast(`Upload failed: ${e.message}`,'err'); log(e.message,'e');
+  }
 }
+
+function handleParsedDrawing(parsed, filename) {
+  if (parsed.has_preview && parsed.preview_image_b64) {
+    uploadedB64 = parsed.preview_image_b64; uploadedType = 'image/png';
+  }
+  const rooms=parsed.rooms||[], layers=parsed.layers||[], warns=parsed.warnings||[];
+  let h = `<div class="parse-row"><span class="parse-key">Format</span>
+    <span class="fmt-badge fmt-${parsed.format.toLowerCase()}">${parsed.format}</span>
+    <span class="parse-val" style="margin-left:4px">${escHtml(filename)}</span></div>`;
+  if (parsed.pages>1) h+=`<div class="parse-row"><span class="parse-key">Sheets</span><span class="parse-val">${parsed.pages}</span></div>`;
+  if (parsed.extents?.width_ft) h+=`<div class="parse-row"><span class="parse-key">Extents</span><span class="parse-val">${parsed.extents.width_ft}ft × ${parsed.extents.height_ft}ft</span></div>`;
+  if (layers.length) h+=`<div class="parse-row"><span class="parse-key">Layers</span><span class="parse-val">${escHtml(layers.slice(0,5).join(', '))}${layers.length>5?' …':''}</span></div>`;
+  if (rooms.length) {
+    h+=`<div class="parse-row" style="margin-top:4px"><span class="parse-key">Rooms</span><span class="parse-val">${rooms.length} detected</span></div>`;
+    h+=`<div class="parse-rooms">${rooms.slice(0,8).map(r=>`<span class="room-tag">${escHtml((r.name||'').slice(0,28))}</span>`).join('')}</div>`;
+  }
+  if (parsed.summary) h+=`<div style="margin-top:5px;font-size:.68rem;color:var(--text4)">${escHtml(parsed.summary.slice(0,180))}</div>`;
+  if (warns.length) h+=`<div style="margin-top:4px;font-size:.69rem;color:var(--warn)">⚠ ${escHtml(warns[0].slice(0,120))}</div>`;
+  if (parsed.has_preview && parsed.preview_image_b64)
+    h+=`<img class="parse-preview" src="data:image/png;base64,${parsed.preview_image_b64}" onclick="openModal(this.src)" title="Click to enlarge"/>`;
+  const panel=document.getElementById('parseResult');
+  panel.innerHTML=h; panel.style.display='block';
+  document.getElementById('uploadStatus').textContent=`✓ ${filename} parsed · ${rooms.length} room(s) · ${layers.length} layer(s)${parsed.has_preview?' · preview → Vision AI':''}`;
+  log(`${parsed.format} parsed: ${rooms.length} rooms, ${layers.length} layers`,'s');
+  toast(`${parsed.format} parsed – ${rooms.length} room(s) extracted`, parsed.has_preview?'nim':'ok');
+}
+
 function clearUpload() {
-  uploadedB64 = ''; uploadedType = 'image/jpeg';
-  document.getElementById('preview').style.display = 'none';
-  document.getElementById('dropzone').style.display = 'block';
-  document.getElementById('uploadStatus').textContent = '';
+  uploadedB64=''; uploadedType='image/jpeg';
+  const pr=document.getElementById('parseResult');
+  if (pr) pr.style.display='none';
+  document.getElementById('uploadStatus').textContent='';
 }
 
 // ── Build payload ─────────────────────────────────────────────────────────
