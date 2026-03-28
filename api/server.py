@@ -468,3 +468,88 @@ def export_package(req: ExportRequest):
         content=zip_bytes, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{project}_construction_set.zip"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# NeMo Retriever RAG endpoints
+# ---------------------------------------------------------------------------
+
+class RAGSearchRequest(BaseModel):
+    query:   str = Field(..., min_length=3)
+    top_k:   int = Field(default=5, ge=1, le=10)
+    rerank:  bool = True
+    api_key: str = ""
+
+
+@app.post("/api/rag/search")
+def rag_search(req: RAGSearchRequest):
+    """
+    Semantic search over the IBC 2023 corpus via NeMo Retriever.
+    Uses nvidia/nv-embedqa-e5-v5 + nvidia/nv-rerankqa-mistral-4b-v3.
+    Falls back to TF-IDF keyword search when no API key is provided.
+    """
+    from rag_engine import get_retriever
+    retriever = get_retriever(req.api_key)
+    try:
+        hits = retriever.retrieve(req.query, top_k=req.top_k, rerank=req.rerank)
+    except Exception as exc:
+        raise HTTPException(500, detail=f"RAG search failed: {exc}")
+    return {
+        "query":   req.query,
+        "top_k":   req.top_k,
+        "results": hits,
+        "mode":    "nemo-retriever" if req.api_key else "tfidf-fallback",
+        "models": {
+            "embed":  "nvidia/nv-embedqa-e5-v5",
+            "rerank": "nvidia/nv-rerankqa-mistral-4b-v3",
+        },
+    }
+
+
+@app.post("/api/validate/rag")
+def validate_rag(req: DispatchRequest):
+    """
+    Compliance check augmented with NeMo Retriever RAG citations.
+    Adds INFO-level findings with retrieved IBC section text.
+    """
+    spec = _build_spec(req)
+    from rag_engine import get_retriever, RAGComplianceEngine
+    retriever = get_retriever(req.api_key)
+    engine    = RAGComplianceEngine(retriever)
+    try:
+        report = engine.validate(spec)
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc))
+    return {
+        "project_id":        spec.project_id,
+        "project_name":      spec.project_name,
+        "rag_mode":          "nemo-retriever" if req.api_key else "tfidf-fallback",
+        "compliance_report": _compliance_dict(report),
+    }
+
+
+@app.get("/api/rag/corpus")
+def rag_corpus():
+    """List all IBC 2023 sections in the knowledge base."""
+    from rag_engine import IBC_CORPUS
+    return {
+        "total_chunks": len(IBC_CORPUS),
+        "chapters":     list({c["chapter"] for c in IBC_CORPUS}),
+        "sections":     [{"id": c["id"], "section": c["section"],
+                          "chapter": c["chapter"]} for c in IBC_CORPUS],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Triton / metrics endpoint
+# ---------------------------------------------------------------------------
+
+@app.get("/api/metrics")
+def get_metrics():
+    """Triton client metrics: request counts, success rate, p95 latency, circuit breaker."""
+    from triton_client import get_triton_client
+    return {
+        "triton_client": get_triton_client().metrics(),
+        "service": "arch-platform",
+        "version": "2.0.0",
+    }
