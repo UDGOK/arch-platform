@@ -311,9 +311,9 @@ textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
 <!-- SIDEBAR -->
 <aside>
   <div class="tabs">
-    <button class="tab on" onclick="tab('project',this)">Project</button>
-    <button class="tab"    onclick="tab('code',this)">Code</button>
-    <button class="tab"    onclick="tab('engine',this)">Engine</button>
+    <button class="tab on" onclick="sideTab('project',this)">Project</button>
+    <button class="tab"    onclick="sideTab('code',this)">Code</button>
+    <button class="tab"    onclick="sideTab('engine',this)">Engine</button>
   </div>
 
   <!-- Project tab -->
@@ -587,7 +587,7 @@ function setOpts(id, vals, def) {
 }
 
 // ── Event handlers ────────────────────────────────────────────────────────
-function tab(name, btn) {
+function sideTab(name, btn) {
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
   btn.classList.add('on');
@@ -1280,11 +1280,12 @@ async function downloadPackage() {
 
 // ── Main tab switcher ─────────────────────────────────────────────────────
 function mainTab(name, btn) {
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
+  // Only toggle the main-area tabs, not the sidebar tabs
+  btn.parentElement.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   ['results','floorplan'].forEach(n => {
     const p = document.getElementById('mainPanel-' + n);
-    if (p) p.style.display = n === name ? (n==='results'?'block':'block') : 'none';
+    if (p) p.style.display = n === name ? 'block' : 'none';
   });
 }
 
