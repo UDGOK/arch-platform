@@ -455,6 +455,72 @@ def debug_info():
     results["registered_engines"] = [e.value for e in EngineRegistry.available()]
     return results
 
+
+# ---------------------------------------------------------------------------
+# Export debug endpoint - diagnose exactly what fails on Vercel
+# ---------------------------------------------------------------------------
+
+@app.get("/api/debug/export")
+def debug_export():
+    """Test every export import and a minimal PDF. Use this to diagnose Vercel crashes."""
+    import time, traceback
+    results = {}
+
+    # Test reportlab
+    try:
+        t0 = time.time()
+        from reportlab.pdfgen import canvas as _c
+        from reportlab.lib.colors import black as _b
+        from reportlab.lib.units import inch as _i
+        import io as _io
+        buf = _io.BytesIO()
+        c2 = _c.Canvas(buf, pagesize=(100, 100))
+        c2.setFillColor(_b)
+        c2.rect(10, 10, 80, 80, fill=1)
+        c2.showPage(); c2.save()
+        pdf = buf.getvalue()
+        results['reportlab'] = f'OK - {len(pdf)} bytes in {(time.time()-t0)*1000:.0f}ms'
+    except Exception as e:
+        results['reportlab'] = f'FAIL: {traceback.format_exc()[:200]}'
+
+    # Test ezdxf
+    try:
+        import ezdxf as _dxf
+        results['ezdxf'] = f'OK - v{_dxf.__version__}'
+    except Exception as e:
+        results['ezdxf'] = f'FAIL: {e}'
+
+    # Test export_engine import
+    try:
+        t0 = time.time()
+        from export_engine import PDFExporter, DXFExporter
+        results['export_engine_import'] = f'OK in {(time.time()-t0)*1000:.0f}ms'
+    except Exception as e:
+        results['export_engine_import'] = f'FAIL: {traceback.format_exc()[:300]}'
+
+    # Test minimal PDF generation
+    try:
+        t0 = time.time()
+        from export_engine import PDFExporter
+        test_job = {
+            'project_name': 'Debug Test', 'building_type': 'Commercial',
+            'occupancy_group': 'B', 'construction_type': 'Type II-A',
+            'jurisdiction_preset': 'Chicago, IL', 'jurisdiction_details': {},
+            'primary_code': 'IBC 2021', 'gross_sq_ft': 10000, 'num_stories': 2,
+            'sprinklered': True,
+            'compliance_report': {'is_compliant': True, 'blocking_count': 0,
+                                   'warning_count': 0, 'summary': 'PASS', 'findings': []},
+        }
+        pdf = PDFExporter(test_job).generate()
+        elapsed = (time.time()-t0)*1000
+        results['pdf_generation'] = f'OK - {len(pdf)} bytes in {elapsed:.0f}ms'
+        results['pdf_pages'] = 6
+    except Exception as e:
+        results['pdf_generation'] = f'FAIL: {traceback.format_exc()[:400]}'
+
+    return results
+
+
 # Static frontend
 _static = Path(__file__).parent.parent / "public"
 
@@ -529,6 +595,49 @@ def export_package(req: ExportRequest):
         content=zip_bytes, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{project}_construction_set.zip"'},
     )
+
+# ---------------------------------------------------------------------------
+# Job-ID based export (avoids 4.5MB Vercel body limit)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/export/{job_id}/pdf")
+def export_pdf_by_id(job_id: str):
+    """Export PDF by job ID (avoids large request body)."""
+    if job_id not in _job_store:
+        raise HTTPException(404, detail=f"Job {job_id} not found")
+    job = _job_store[job_id]
+    try:
+        from export_engine import PDFExporter
+        pdf_bytes = PDFExporter(job).generate()
+    except Exception as exc:
+        logger.exception("PDF export error")
+        raise HTTPException(500, detail=f"PDF export failed: {exc}")
+    project = job.get("project_name","project").replace(" ","_")[:40]
+    return FastAPIResponse(
+        content=pdf_bytes, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{project}_construction.pdf"'},
+    )
+
+
+@app.get("/api/export/{job_id}/package")
+def export_package_by_id(job_id: str):
+    """Export ZIP package by job ID (avoids large request body)."""
+    if job_id not in _job_store:
+        raise HTTPException(404, detail=f"Job {job_id} not found")
+    job = _job_store[job_id]
+    try:
+        from export_engine import build_export_package
+        pkg = build_export_package(job)
+    except Exception as exc:
+        logger.exception("Package export error")
+        raise HTTPException(500, detail=f"Package export failed: {exc}")
+    project = job.get("project_name","project").replace(" ","_")[:40]
+    return FastAPIResponse(
+        content=pkg, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{project}_construction_set.zip"'},
+    )
+
+
 
 
 # ---------------------------------------------------------------------------

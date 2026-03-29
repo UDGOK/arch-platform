@@ -563,7 +563,16 @@ async function postJSON(path, body) {
 
 async function postBinary(path, body) {
   const r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+  if (!r.ok) {
+    const ct = r.headers.get('Content-Type') || '';
+    if (ct.includes('json')) {
+      const e = await r.json();
+      throw new Error(e.detail || `HTTP ${r.status}`);
+    } else {
+      const txt = await r.text();
+      throw new Error(`Server error ${r.status}: ${txt.replace(/<[^>]+>/g,'').slice(0,120)}`);
+    }
+  }
   return r.blob();
 }
 
@@ -703,24 +712,57 @@ function finds(fs) {
 }
 
 // ── Export ────────────────────────────────────────────────────────────────
+function stripJob(job) {
+  // Remove image_b64 fields before sending to export - Vercel has 4.5MB body limit
+  if (!job) return job;
+  const j = {...job};
+  if (j.drawings) {
+    j.drawings = j.drawings.map(d => {
+      const d2 = {...d};
+      delete d2.image_b64;
+      return d2;
+    });
+  }
+  return j;
+}
+
 async function dlPDF() {
   if (!lastJob) return;
   toast('Generating PDF…','info');
+  const name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
-    const b = await postBinary('/api/export/pdf', {job: lastJob});
-    dlBlob(b, (lastJob.project_name||'project').replace(/\s+/g,'_')+'_construction.pdf');
+    // Try job-ID endpoint first (avoids Vercel 4.5MB body limit)
+    const jobId = lastJob.job_id;
+    let b;
+    if (jobId) {
+      const r = await fetch(API+'/api/export/'+jobId+'/pdf');
+      if (r.ok) { b = await r.blob(); }
+      else { b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)}); }
+    } else {
+      b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)});
+    }
+    dlBlob(b, name+'_construction.pdf');
     toast('PDF downloaded','ok');
-  } catch(e) { toast(e.message,'err'); }
+  } catch(e) { toast(e.message,'err'); log('PDF: '+e.message,'e'); }
 }
 
 async function dlPackage() {
   if (!lastJob) return;
-  toast('Building ZIP package…','info');
+  toast('Building package…','info');
+  const name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
-    const b = await postBinary('/api/export/package', {job: lastJob});
-    dlBlob(b, (lastJob.project_name||'project').replace(/\s+/g,'_')+'_construction_set.zip');
+    const jobId = lastJob.job_id;
+    let b;
+    if (jobId) {
+      const r = await fetch(API+'/api/export/'+jobId+'/package');
+      if (r.ok) { b = await r.blob(); }
+      else { b = await postBinary('/api/export/package', {job: stripJob(lastJob)}); }
+    } else {
+      b = await postBinary('/api/export/package', {job: stripJob(lastJob)});
+    }
+    dlBlob(b, name+'_construction_set.zip');
     toast('Package downloaded','ok');
-  } catch(e) { toast(e.message,'err'); }
+  } catch(e) { toast(e.message,'err'); log('Package: '+e.message,'e'); }
 }
 
 function dlBlob(blob, filename) {
