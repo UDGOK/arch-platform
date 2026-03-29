@@ -175,14 +175,27 @@ def _compliance_dict(report) -> dict:
 
 
 def _job_to_dict(job: GenerationJob) -> dict:
+    spec = getattr(job, "spec", None)
+    jur  = spec.jurisdiction if spec else None
     return {
-        "job_id":           job.job_id,
-        "status":           job.status.value,
-        "engine":           job.engine_provider.value,
-        "created_at":       job.created_at.isoformat(),
-        "completed_at":     job.completed_at.isoformat() if job.completed_at else None,
-        "duration_seconds": job.duration_seconds(),
-        "error_message":    job.error_message,
+        "job_id":            job.job_id,
+        "status":            job.status.value,
+        "engine":            job.engine_provider.value,
+        "created_at":        job.created_at.isoformat(),
+        "completed_at":      job.completed_at.isoformat() if job.completed_at else None,
+        "duration_seconds":  job.duration_seconds(),
+        "error_message":     job.error_message,
+        "project_name":      spec.project_name           if spec else "",
+        "building_type":     spec.building_type.value    if spec else "Commercial",
+        "occupancy_group":   spec.occupancy_group.value  if spec else "B",
+        "construction_type": spec.construction_type.value if spec else "",
+        "primary_code":      spec.primary_code.value     if spec else "IBC 2023",
+        "gross_sq_ft":       spec.gross_sq_ft             if spec else None,
+        "num_stories":       spec.num_stories              if spec else None,
+        "building_height_ft": spec.building_height_ft     if spec else None,
+        "sprinklered":       spec.sprinklered               if spec else False,
+        "jurisdiction_preset": (jur.city + ", " + jur.state) if jur else "",
+        "jurisdiction_details": jur.to_dict() if jur else {},
         "compliance_report": _compliance_dict(job.compliance_report) if job.compliance_report else None,
         "drawings": [{
             "sheet_number": d.sheet_number, "title": d.title,
@@ -190,6 +203,9 @@ def _job_to_dict(job: GenerationJob) -> dict:
             "url": d.url, "available": d.is_available(),
             "has_image": d.metadata.get("has_image", False),
             "image_b64": d.metadata.get("image_b64", ""),
+            "key_notes": d.metadata.get("key_notes", []),
+            "code_sections": d.metadata.get("code_sections", []),
+            "drawing_prompt": d.metadata.get("drawing_prompt", ""),
             "metadata": {k: v for k, v in d.metadata.items()
                          if k not in ("generated_at", "image_b64")},
         } for d in job.drawings],
@@ -482,22 +498,20 @@ def export_pdf(req: ExportRequest):
 
 @app.post("/api/export/dxf/{sheet_index}")
 def export_dxf_sheet(sheet_index: int, req: ExportRequest):
-    """Generate single DXF sheet. sheet_index = 0-based index into drawings[]."""
-    drawings = req.job.get("drawings", [])
-    if sheet_index >= len(drawings):
-        raise HTTPException(404, detail=f"Sheet {sheet_index} out of range.")
+    """Generate single DXF sheet. Returns the sheet matching sheet_index or A1.0 if out of range."""
     try:
         from export_engine import DXFExporter
-        dxf_bytes = DXFExporter(req.job).generate_sheet(drawings[sheet_index])
+        sheets = DXFExporter(req.job).generate_all_sheets()
+        sheet_names = list(sheets.keys())
+        idx = min(sheet_index, len(sheet_names)-1)
+        fname = sheet_names[idx]
+        dxf_bytes = sheets[fname]
     except Exception as exc:
         logger.exception("DXF export error")
         raise HTTPException(500, detail=f"DXF export failed: {exc}")
-    drw = drawings[sheet_index]
-    num = drw.get("sheet_number","X0").replace("/","_").replace(" ","_")
-    stype = drw.get("sheet_type","Sheet").replace(" ","_")
     return FastAPIResponse(
         content=dxf_bytes, media_type="application/dxf",
-        headers={"Content-Disposition": f'attachment; filename="{num}_{stype}.dxf"'},
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
 
 

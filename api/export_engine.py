@@ -31,7 +31,7 @@ import zipfile
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-import fitz                             # PyMuPDF – SVG→PNG rendering
+# fitz (PyMuPDF) loaded on demand only if needed
 from reportlab.lib.colors import Color, HexColor, black, white
 from reportlab.lib.pagesizes import landscape
 from reportlab.lib.units import inch
