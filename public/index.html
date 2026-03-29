@@ -732,12 +732,7 @@ async function dlPDF() {
   const name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
     // Try job-ID endpoint first (avoids Vercel 4.5MB body limit)
-    const jobId = lastJob.job_id;
-    let b;
-    if (jobId) {
-      const r = await fetch(API+'/api/export/'+jobId+'/pdf');
-      if (r.ok) { b = await r.blob(); }
-      else { b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)}); }
+    const b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)});
     } else {
       b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)});
     }
@@ -751,12 +746,7 @@ async function dlPackage() {
   toast('Building package…','info');
   const name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
-    const jobId = lastJob.job_id;
-    let b;
-    if (jobId) {
-      const r = await fetch(API+'/api/export/'+jobId+'/package');
-      if (r.ok) { b = await r.blob(); }
-      else { b = await postBinary('/api/export/package', {job: stripJob(lastJob)}); }
+    const b = await postBinary('/api/export/package', {job: stripJob(lastJob)});
     } else {
       b = await postBinary('/api/export/package', {job: stripJob(lastJob)});
     }
