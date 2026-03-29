@@ -779,63 +779,44 @@ function finds(fs) {
 // ── Export ────────────────────────────────────────────────────────────────
 function cleanJob(job) {
   if (!job) return job;
-  // Deep clean job for export - remove large data and circular refs
-  var j = JSON.parse(JSON.stringify(job, function(k, v) {
-    // Remove large base64 strings
+  // Deep clean job for export - remove large data
+  var cleaned = JSON.parse(JSON.stringify(job, function(k, v) {
+    // Remove large base64 strings (images are regenerated for PDF)
     if (k === 'image_b64' || k === 'preview_image_b64') return undefined;
     // Remove functions
     if (typeof v === 'function') return undefined;
     // Remove undefined values
     if (v === undefined) return undefined;
+    // Remove null values in key places
+    if (v === null) return undefined;
     return v;
   }));
-  return j;
+  // Also remove empty arrays/objects
+  return cleaned;
 }
 
 async function dlPDF() {
-  if (!lastJob) return;
+  if (!lastJob) { toast('Generate drawings first','err'); return; }
   toast('Generating PDF...','info');
   var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
-    var b;
-    // Use job ID endpoint if available (more reliable)
-    if (lastJob.job_id) {
-      b = await fetch(API + '/api/export/' + encodeURIComponent(lastJob.job_id) + '/pdf');
-      if (!b.ok) {
-        var e = await b.json().catch(function() { return {}; });
-        throw new Error(e.detail || 'HTTP ' + b.status);
-      }
-      b = await b.blob();
-    } else {
-      // Fallback: send cleaned job object
-      b = await postBinary('/api/export/pdf', {job: cleanJob(lastJob)});
-    }
+    var jobData = cleanJob(lastJob);
+    var b = await postBinary('/api/export/pdf', {job: jobData});
     dlBlob(b, name+'_construction.pdf');
     toast('PDF downloaded','ok');
-  } catch(e) { toast(e.message,'err'); log('PDF: '+e.message,'e'); }
+  } catch(e) { toast('PDF failed: ' + e.message,'err'); log('PDF: '+e.message,'e'); }
 }
 
 async function dlPackage() {
-  if (!lastJob) return;
+  if (!lastJob) { toast('Generate drawings first','err'); return; }
   toast('Building package...','info');
   var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
-    var b;
-    // Use job ID endpoint if available (more reliable)
-    if (lastJob.job_id) {
-      b = await fetch(API + '/api/export/' + encodeURIComponent(lastJob.job_id) + '/package');
-      if (!b.ok) {
-        var e = await b.json().catch(function() { return {}; });
-        throw new Error(e.detail || 'HTTP ' + b.status);
-      }
-      b = await b.blob();
-    } else {
-      // Fallback: send cleaned job object
-      b = await postBinary('/api/export/package', {job: cleanJob(lastJob)});
-    }
+    var jobData = cleanJob(lastJob);
+    var b = await postBinary('/api/export/package', {job: jobData});
     dlBlob(b, name+'_construction_set.zip');
     toast('Package downloaded','ok');
-  } catch(e) { toast(e.message,'err'); log('Package: '+e.message,'e'); }
+  } catch(e) { toast('Package failed: ' + e.message,'err'); log('Package: '+e.message,'e'); }
 }
 
 function dlBlob(blob, filename) {
