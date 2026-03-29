@@ -441,12 +441,17 @@ def debug_info():
 
 # Static frontend
 _static = Path(__file__).parent.parent / "public"
+
+# Serve index.html at root - works on Vercel and locally
+@app.get("/", include_in_schema=False)
+def serve_index():
+    idx = _static / "index.html"
+    if idx.exists():
+        return FileResponse(str(idx))
+    return {"status": "ok", "message": "Architectural AI Platform API", "docs": "/api/docs"}
+
 if _static.exists():
     app.mount("/static", StaticFiles(directory=str(_static)), name="static")
-
-    @app.get("/", include_in_schema=False)
-    def serve_index():
-        return FileResponse(str(_static / "index.html"))
 
 
 # ---------------------------------------------------------------------------
