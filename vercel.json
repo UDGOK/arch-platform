@@ -1,1 +1,23 @@
-{"version":2,"rewrites":[{"source":"/api/(.*)","destination":"/api/server"},{"source":"/healthz","destination":"/api/server"},{"source":"/(.*)","destination":"/public/index.html"}]}
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/server.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "api/server.py"
+    },
+    {
+      "src": "/healthz",
+      "dest": "api/server.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "public/index.html"
+    }
+  ]
+}
