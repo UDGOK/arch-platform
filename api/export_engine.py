@@ -32,10 +32,16 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 # fitz (PyMuPDF) loaded on demand only if needed
-from reportlab.lib.colors import Color, HexColor, black, white
-from reportlab.lib.pagesizes import landscape
-from reportlab.lib.units import inch
-from reportlab.pdfgen import canvas as rl_canvas
+# reportlab loaded lazily inside generate() to avoid cold-start crashes on Vercel
+try:
+    from reportlab.lib.colors import Color, HexColor, black, white
+    from reportlab.lib.pagesizes import landscape
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas as rl_canvas
+    _RL_OK = True
+except Exception as _rl_err:
+    _RL_OK = False
+    _rl_err_msg = str(_rl_err)
 
 # ── Sheet constants (ANSI D  34" × 22") ─────────────────────────────────
 PW, PH      = 34 * 72, 22 * 72      # 2448 × 1584 pts
@@ -1179,6 +1185,8 @@ class PDFExporter:
         self.job = job
 
     def generate(self) -> bytes:
+        if not _RL_OK:
+            raise RuntimeError(f"reportlab not available on this runtime: {_rl_err_msg}")
         buf = io.BytesIO()
         c   = rl_canvas.Canvas(buf, pagesize=(PW, PH))
         c.setTitle(self.job.get('project_name','Project') + ' – Construction Documents')
