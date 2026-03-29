@@ -175,9 +175,9 @@ textarea{resize:vertical;min-height:55px}
 <body>
 
 <header>
-  <div class="hlogo">🏗</div>
+  <div class="hlogo">&#127970;</div>
   <div class="htitle">Architectural <span>AI</span> Platform</div>
-  <div class="hbadge">IBC 2023 · NVIDIA NIM</div>
+  <div class="hbadge">IBC 2023 &#183; NVIDIA NIM</div>
 </header>
 
 <div class="layout">
@@ -194,18 +194,20 @@ textarea{resize:vertical;min-height:55px}
   <div class="spane on" id="spane-project">
     <div class="sh">Project</div>
     <div class="fg"><label>Name <span class="r">*</span></label>
-      <input type="text" id="projName" value="Corporate HQ – Phase 1"/>
+      <input type="text" id="projName" value="Corporate HQ &#8211; Phase 1"/>
     </div>
+
     <div class="sh">Building Type</div>
     <div class="rg" id="btg">
       <div class="ro on" data-v="Commercial" onclick="pickRo('btg',this)">Commercial</div>
       <div class="ro"    data-v="Residential" onclick="pickRo('btg',this)">Residential</div>
     </div>
+
     <div class="fg"><label>Occupancy Group</label><select id="og"></select></div>
     <div class="fg"><label>Construction Type</label><select id="ct"></select></div>
     <div class="sh">Jurisdiction</div>
     <div class="fg"><label>Preset</label><select id="jur" onchange="onJur()"></select></div>
-    <div class="ji" id="jurInfo">Loading…</div>
+    <div class="ji" id="jurInfo">Loading&#8230;</div>
     <div class="sh">Parameters</div>
     <div class="fg"><label>Gross Area (sq ft)</label><input type="number" id="sqft" placeholder="e.g. 25000"/></div>
     <div class="r2">
@@ -219,13 +221,15 @@ textarea{resize:vertical;min-height:55px}
         <span id="spLbl" style="font-size:.8rem">Not Sprinklered</span>
       </div>
     </div>
+
     <div class="sh">Upload Drawing (optional)</div>
     <div class="uz" ondragover="event.preventDefault()" ondrop="onDrop(event)">
       <input type="file" accept=".dwg,.dxf,.pdf,.ifc,.rvt,image/*" onchange="onFile(this)"/>
-      <div style="font-size:24px">📐</div>
-      <div style="font-size:.78rem;color:var(--txt2);margin-top:4px">Drop DWG · DXF · PDF · IFC · RVT</div>
+      <div style="font-size:24px">&#128206;</div>
+      <div style="font-size:.78rem;color:var(--txt2);margin-top:4px">Drop DWG &#183; DXF &#183; PDF &#183; IFC &#183; RVT</div>
       <div style="font-size:.68rem;color:var(--txt3);margin-top:2px">max 100 MB</div>
     </div>
+
     <div id="upStatus" style="font-size:.7rem;color:var(--txt3)"></div>
   </div>
 
@@ -236,31 +240,38 @@ textarea{resize:vertical;min-height:55px}
     <div class="fg"><label>Accessibility Standard</label>
       <input type="text" id="acc" value="ADA / ICC A117.1-2017"/>
     </div>
+
     <div class="sh">Drawing Sets</div>
     <div class="qrow" style="margin-bottom:6px">
       <button class="qb" onclick="allDraw(true)">All</button>
       <button class="qb" onclick="allDraw(false)">Clear</button>
       <button class="qb" onclick="fullSet()">Full Set</button>
     </div>
+
     <div class="cg" id="drawGrid"></div>
+
     <div class="sh" style="margin-top:8px">Notes</div>
-    <textarea id="notes" rows="3" placeholder="Scope notes…"></textarea>
+    <textarea id="notes" rows="3" placeholder="Scope notes&#8230;"></textarea>
   </div>
 
   <!-- Engine -->
   <div class="spane" id="spane-engine">
     <div class="sh">AI Engine</div>
     <div class="fg"><label>Provider</label><select id="engProv" onchange="onEng()"></select></div>
+
     <div class="fg"><label>API Key</label>
       <input type="password" id="apiKey" placeholder="Leave blank for Mock engine"/>
     </div>
+
     <div id="engDesc" style="font-size:.7rem;color:var(--txt3);margin-bottom:4px"></div>
+
     <div class="sh">Actions</div>
-    <button class="btn btn-sec"  onclick="runValidate()">✓  Compliance Check Only</button>
-    <button class="btn btn-nim"  onclick="runNIM()">⚡  Generate with NVIDIA NIM</button>
-    <button class="btn btn-pri"  id="btnGen" onclick="runDispatch()">▶  Generate (Mock / Other)</button>
+    <button class="btn btn-sec"  onclick="runValidate()">&#10003;  Compliance Check Only</button>
+    <button class="btn btn-nim"  onclick="runNIM()">&#9889;  Generate with NVIDIA NIM</button>
+
+    <button class="btn btn-pri"  id="btnGen" onclick="runDispatch()">&#9654;  Generate (Mock / Other)</button>
     <div class="prog" id="prog"><div class="prog-f" id="progF"></div></div>
-    <div class="loader" id="ldr"><div class="spin"></div><span id="ldrMsg">Processing…</span></div>
+    <div class="loader" id="ldr"><div class="spin"></div><span id="ldrMsg">Processing&#8230;</span></div>
     <div class="log" id="log"></div>
   </div>
 </aside>
@@ -268,13 +279,13 @@ textarea{resize:vertical;min-height:55px}
 <!-- MAIN -->
 <main>
   <div class="mtabs">
-    <button class="mtab on" id="mtab-results"   onclick="mtab('results')">📐 Results</button>
-    <button class="mtab"    id="mtab-floorplan" onclick="mtab('floorplan')">🏗 Floor Plan Generator</button>
+    <button class="mtab on" id="mtab-results"   onclick="mtab('results')">&#128206; Results</button>
+    <button class="mtab"    id="mtab-floorplan" onclick="mtab('floorplan')">&#127970; Floor Plan Generator</button>
   </div>
 
   <div class="mpanel on" id="mpanel-results">
     <div class="empty" id="emptyState">
-      <div style="font-size:48px">📐</div>
+      <div style="font-size:48px">&#128206;</div>
       <p>Configure your project in the sidebar<br>then click <strong>Generate</strong></p>
     </div>
   </div>
@@ -282,19 +293,23 @@ textarea{resize:vertical;min-height:55px}
   <div class="mpanel" id="mpanel-floorplan">
     <div class="card">
       <div class="chdr">
-        <div class="cico nv">🏗</div>
+        <div class="cico nv">&#127970;</div>
         <div><div class="ct">Floor Plan Generator</div>
-          <div class="cs">Text description → real dimensioned 2D floor plan + DXF</div></div>
+          <div class="cs">Text description &#8594; real dimensioned 2D floor plan + DXF</div></div>
       </div>
+
       <div class="fg"><label>Describe your floor plan <span class="r">*</span></label>
         <textarea id="fpDesc" rows="4" placeholder="e.g. 3 private offices 12x14, open office 40x30, conference room 18x20, lobby, 2 restrooms, corridor, 5000 sq ft&#10;or: 3 bedroom 2 bathroom house, master bedroom 14x16, open plan kitchen/living, 2000 sq ft"></textarea>
       </div>
+
       <div class="r2" style="margin-top:8px">
         <div class="fg"><label>Project Name</label><input type="text" id="fpName" value="My Project"/></div>
         <div class="fg"><label>Code</label>
           <select id="fpCode"><option>IBC 2023</option><option>CBC 2022</option><option>IBC 2021</option></select>
         </div>
+
       </div>
+
       <div class="r2">
         <div class="fg"><label>Building Type</label>
           <div class="rg" id="fpBtg">
@@ -302,21 +317,26 @@ textarea{resize:vertical;min-height:55px}
             <div class="ro" data-v="Residential"  onclick="pickRo('fpBtg',this)">Residential</div>
           </div>
         </div>
+
         <div class="fg"><label>Jurisdiction</label><input type="text" id="fpJur" placeholder="e.g. Chicago, IL"/></div>
       </div>
+
       <div class="fg">
-        <label>NVIDIA API Key <span style="font-weight:400;color:var(--txt3)">(optional – uses keyword parser if blank)</span></label>
-        <input type="password" id="fpKey" placeholder="nvapi-…"/>
+        <label>NVIDIA API Key <span style="font-weight:400;color:var(--txt3)">(optional &#8211; uses keyword parser if blank)</span></label>
+        <input type="password" id="fpKey" placeholder="nvapi-&#8230;"/>
       </div>
-      <button class="btn btn-nim" id="fpBtn" onclick="genFP()" style="margin-top:6px">⚡ Generate Floor Plan</button>
+
+      <button class="btn btn-nim" id="fpBtn" onclick="genFP()" style="margin-top:6px">&#9889; Generate Floor Plan</button>
       <div id="fpStatus" style="font-size:.73rem;color:var(--txt3);margin-top:5px;text-align:center"></div>
     </div>
+
     <div id="fpResult" style="display:none">
       <div class="stats" id="fpStats"></div>
       <div style="display:flex;gap:8px;margin-bottom:10px">
-        <button class="ebtn eb-pdf" onclick="dlFpSvg()">⬇ SVG</button>
-        <button class="ebtn eb-dxf" onclick="dlFpDxf()">⬇ DXF</button>
+        <button class="ebtn eb-pdf" onclick="dlFpSvg()">&#11015; SVG</button>
+        <button class="ebtn eb-dxf" onclick="dlFpDxf()">&#11015; DXF</button>
       </div>
+
       <div class="fp-svg" id="fpSvg"></div>
       <div class="fp-rooms" id="fpRooms"></div>
     </div>
@@ -326,16 +346,19 @@ textarea{resize:vertical;min-height:55px}
   <div id="chatSection" style="display:none;flex-shrink:0;border-top:1px solid var(--bdr)">
     <div class="chat-panel" style="border-radius:0;border:none">
       <div class="chat-hdr">
-        💬 Conversational Refinement
+        &#128172; Conversational Refinement
         <span style="font-size:.68rem;color:var(--txt3);font-weight:400;margin-left:4px">Llama 3.1 70B</span>
       </div>
+
       <div class="chat-sel-row">
         <span style="font-size:.69rem;color:var(--txt3)">Sheet:</span>
         <select id="sheetSel" style="flex:1;background:var(--surf3);border:1px solid var(--bdr);color:var(--txt);border-radius:5px;padding:3px 8px;font-size:.74rem" onchange="selSheet(parseInt(this.value))"></select>
+
       </div>
+
       <div class="chat-body" id="chatBody"></div>
       <div class="chat-inp">
-        <input id="chatIn" placeholder="e.g. Add ADA notes, update egress width to 44 inches…" onkeydown="if(event.key==='Enter')sendChat()"/>
+        <input id="chatIn" placeholder="e.g. Add ADA notes, update egress width to 44 inches&#8230;" onkeydown="if(event.key==='Enter')sendChat()"/>
         <button onclick="sendChat()">Send</button>
       </div>
     </div>
@@ -344,7 +367,7 @@ textarea{resize:vertical;min-height:55px}
 </div>
 
 <div class="modal" id="modal" onclick="this.classList.remove('on')">
-  <button class="modal-x">✕</button>
+  <button class="modal-x">&#10006;</button>
   <img id="modalImg" src="" alt=""/>
 </div>
 <div class="toasts" id="toasts"></div>
@@ -352,27 +375,27 @@ textarea{resize:vertical;min-height:55px}
 <script>
 "use strict";
 // ── State ─────────────────────────────────────────────────────────────────
-const API = '';
-let META = {};
-let sprinklered = false;
-let imgGenOn = true;
-let uploadedB64 = '';
-let uploadedType = 'image/jpeg';
-let selectedDrawings = new Set(['Floor Plan','Exterior Elevations','Site Plan']);
-let lastDrawings = [];
-let lastJob = null;
-let chatHistory = [];
-let currentSheet = 0;
-let fpData = null;
+var API = '';
+var META = {};
+var sprinklered = false;
+var imgGenOn = true;
+var uploadedB64 = '';
+var uploadedType = 'image/jpeg';
+var selectedDrawings = new Set(['Floor Plan','Exterior Elevations','Site Plan']);
+var lastDrawings = [];
+var lastJob = null;
+var chatHistory = [];
+var currentSheet = 0;
+var fpData = null;
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    const r = await fetch(API + '/api/meta');
+    var r = await fetch(API + '/api/meta');
     META = await r.json();
   } catch(e) {
     META = FALLBACK;
-    log('API offline – using fallback data','w');
+    log('API offline - using fallback data','w');
   }
   populateMeta();
   log('Platform ready','n');
@@ -380,29 +403,29 @@ async function boot() {
 
 // ── Sidebar tabs ──────────────────────────────────────────────────────────
 function stab(name) {
-  document.querySelectorAll('.stab').forEach(b => b.classList.remove('on'));
-  document.querySelectorAll('.spane').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.stab').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('.spane').forEach(function(p){p.classList.remove('on');});
   document.getElementById('stab-'+name).classList.add('on');
   document.getElementById('spane-'+name).classList.add('on');
 }
 
 // ── Main tabs ─────────────────────────────────────────────────────────────
 function mtab(name) {
-  document.querySelectorAll('.mtab').forEach(b => b.classList.remove('on'));
-  document.querySelectorAll('.mpanel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.mtab').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('.mpanel').forEach(function(p){p.classList.remove('on');});
   document.getElementById('mtab-'+name).classList.add('on');
   document.getElementById('mpanel-'+name).classList.add('on');
 }
 
 // ── Radio buttons ─────────────────────────────────────────────────────────
 function pickRo(gid, el) {
-  document.querySelectorAll('#'+gid+' .ro').forEach(r => r.classList.remove('on'));
+  document.querySelectorAll('#'+gid+' .ro').forEach(function(r){r.classList.remove('on');});
   el.classList.add('on');
   if (gid === 'btg') updateOG();
 }
 
 function getRo(gid) {
-  const el = document.querySelector('#'+gid+' .ro.on');
+  var el = document.querySelector('#'+gid+' .ro.on');
   return el ? el.dataset.v : '';
 }
 
@@ -414,13 +437,13 @@ function populateMeta() {
   setOpts('jur',  META.jurisdiction_presets, 'Chicago, IL');
   setOpts('engProv', META.engine_providers,  'Mock Engine (Testing)');
 
-  const g = document.getElementById('drawGrid');
+  var g = document.getElementById('drawGrid');
   g.innerHTML = '';
-  (META.drawing_sets || []).forEach(ds => {
-    const el = document.createElement('div');
+  (META.drawing_sets || []).forEach(function(ds) {
+    var el = document.createElement('div');
     el.className = 'ci' + (selectedDrawings.has(ds) ? ' on' : '');
     el.dataset.v = ds;
-    el.innerHTML = '<div class="ck">' + (selectedDrawings.has(ds) ? '✓' : '') + '</div><span>' + ds + '</span>';
+    el.innerHTML = '<div class="ck">' + (selectedDrawings.has(ds) ? '&#10003;' : '') + '</div><span>' + ds + '</span>';
     el.onclick = function() { toggleDraw(this, ds); };
     g.appendChild(el);
   });
@@ -430,38 +453,44 @@ function populateMeta() {
 }
 
 function updateOG() {
-  const bt = getRo('btg') || 'Commercial';
-  const groups = (META.occupancy_groups || FALLBACK.occupancy_groups)[bt] || [];
+  var bt = getRo('btg') || 'Commercial';
+  var groups = (META.occupancy_groups || FALLBACK.occupancy_groups)[bt] || [];
   setOpts('og', groups, 'B');
 }
 
 function setOpts(id, vals, def) {
-  const el = document.getElementById(id);
+  var el = document.getElementById(id);
   if (!el) return;
-  el.innerHTML = (vals || []).map(v => '<option' + (v === def ? ' selected' : '') + '>' + v + '</option>').join('');
+  var html = '';
+  for (var i = 0; i < vals.length; i++) {
+    html += '<option' + (vals[i] === def ? ' selected' : '') + '>' + vals[i] + '</option>';
+  }
+  el.innerHTML = html;
 }
 
 function onJur() {
-  const name = document.getElementById('jur').value;
-  const d = (META.jurisdiction_details || FALLBACK.jurisdiction_details)[name];
+  var name = document.getElementById('jur').value;
+  var d = (META.jurisdiction_details || FALLBACK.jurisdiction_details)[name];
   if (!d) return;
-  document.getElementById('jurInfo').innerHTML =
-    '<div><b>Code: </b>' + d.adopted_building_code + '</div>' +
-    '<div><b>Fire: </b>' + d.adopted_fire_code + '</div>' +
-    '<div><b>Seismic SDC: </b>' + d.seismic_design_category + '</div>' +
-    '<div><b>Wind: </b>' + (d.wind_speed_mph || 'N/A') + ' mph</div>' +
-    (d.flood_zone ? '<div><b>Flood: </b>' + d.flood_zone + '</div>' : '') +
-    (d.local_amendments && d.local_amendments.length ? '<div><b>Amendments: </b>' + d.local_amendments.join(', ') + '</div>' : '');
+  var html = '<div><b>Code: </b>' + (d.adopted_building_code || '') + '</div>' +
+    '<div><b>Fire: </b>' + (d.adopted_fire_code || '') + '</div>' +
+    '<div><b>Seismic SDC: </b>' + (d.seismic_design_category || '') + '</div>' +
+    '<div><b>Wind: </b>' + (d.wind_speed_mph || 'N/A') + ' mph</div>';
+  if (d.flood_zone) html += '<div><b>Flood: </b>' + d.flood_zone + '</div>';
+  if (d.local_amendments && d.local_amendments.length) {
+    html += '<div><b>Amendments: </b>' + d.local_amendments.join(', ') + '</div>';
+  }
+  document.getElementById('jurInfo').innerHTML = html;
 }
 
-const ENG_DESC = {
+var ENG_DESC = {
   'Mock Engine (Testing)': 'No API key needed. Instant results for testing.',
   'Anthropic Claude': 'Requires Anthropic API key.',
-  'NVIDIA Picasso': 'Requires NVIDIA API key. Use ⚡ NIM button for full pipeline.',
-  'OpenAI GPT-4o': 'Requires OpenAI API key.',
+  'NVIDIA Picasso': 'Requires NVIDIA API key. Use NIM button for full pipeline.',
+  'OpenAI GPT-4o': 'Requires OpenAI API key.'
 };
 function onEng() {
-  const v = document.getElementById('engProv').value;
+  var v = document.getElementById('engProv').value;
   document.getElementById('engDesc').textContent = ENG_DESC[v] || '';
 }
 
@@ -474,26 +503,38 @@ function toggleSp() {
 
 function toggleDraw(el, ds) {
   if (selectedDrawings.has(ds)) {
-    selectedDrawings.delete(ds); el.classList.remove('on'); el.querySelector('.ck').textContent = '';
+    selectedDrawings.delete(ds);
+    el.classList.remove('on');
+    el.querySelector('.ck').textContent = '';
   } else {
-    selectedDrawings.add(ds); el.classList.add('on'); el.querySelector('.ck').textContent = '✓';
+    selectedDrawings.add(ds);
+    el.classList.add('on');
+    el.querySelector('.ck').textContent = '&#10003;';
   }
 }
 
 function allDraw(v) {
-  document.querySelectorAll('#drawGrid .ci').forEach(el => {
-    const ds = el.dataset.v;
-    if (v) { selectedDrawings.add(ds); el.classList.add('on'); el.querySelector('.ck').textContent = '✓'; }
-    else   { selectedDrawings.delete(ds); el.classList.remove('on'); el.querySelector('.ck').textContent = ''; }
+  document.querySelectorAll('#drawGrid .ci').forEach(function(el) {
+    var ds = el.dataset.v;
+    if (v) {
+      selectedDrawings.add(ds);
+      el.classList.add('on');
+      el.querySelector('.ck').textContent = '&#10003;';
+    } else {
+      selectedDrawings.delete(ds);
+      el.classList.remove('on');
+      el.querySelector('.ck').textContent = '';
+    }
   });
 }
 
 function fullSet() {
   allDraw(false);
-  document.querySelectorAll('#drawGrid .ci').forEach(el => {
+  document.querySelectorAll('#drawGrid .ci').forEach(function(el) {
     if (el.dataset.v === 'Full Construction Set') {
       selectedDrawings.add('Full Construction Set');
-      el.classList.add('on'); el.querySelector('.ck').textContent = '✓';
+      el.classList.add('on');
+      el.querySelector('.ck').textContent = '&#10003;';
     }
   });
 }
@@ -505,30 +546,42 @@ function onDrop(e) {
 }
 
 async function onFile(inp) {
-  const file = inp.files[0]; if (!file) return;
-  const ext = file.name.split('.').pop().toLowerCase();
-  const status = document.getElementById('upStatus');
-  if (['jpg','jpeg','png'].includes(ext)) {
-    const reader = new FileReader();
-    reader.onload = e => { uploadedB64 = e.target.result.split(',')[1]; uploadedType = file.type; status.textContent = '✓ ' + file.name + ' – sketch ready'; };
-    reader.readAsDataURL(file); return;
+  var file = inp.files[0];
+  if (!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+  var status = document.getElementById('upStatus');
+  if (['jpg','jpeg','png'].indexOf(ext) >= 0) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      uploadedB64 = e.target.result.split(',')[1];
+      uploadedType = file.type;
+      status.textContent = '&#10003; ' + file.name + ' - sketch ready';
+    };
+    reader.readAsDataURL(file);
+    return;
   }
-  status.textContent = 'Uploading ' + file.name + '…';
-  const fd = new FormData(); fd.append('file', file);
+  status.textContent = 'Uploading ' + file.name + '...';
+  var fd = new FormData();
+  fd.append('file', file);
   try {
-    const r = await fetch(API + '/api/upload/drawing', {method:'POST', body: fd});
-    const d = await r.json();
-    if (d.has_preview && d.preview_image_b64) { uploadedB64 = d.preview_image_b64; uploadedType = 'image/png'; }
-    status.textContent = '✓ ' + file.name + ' – ' + (d.rooms||[]).length + ' rooms, ' + (d.layers||[]).length + ' layers' + (d.has_preview ? ' · preview ready' : '');
-    toast(file.name.split('.').pop().toUpperCase() + ' parsed – ' + (d.rooms||[]).length + ' rooms found', 'nim');
-  } catch(e) { status.textContent = '✗ ' + e.message; }
+    var r = await fetch(API + '/api/upload/drawing', {method:'POST', body: fd});
+    var d = await r.json();
+    if (d.has_preview && d.preview_image_b64) {
+      uploadedB64 = d.preview_image_b64;
+      uploadedType = 'image/png';
+    }
+    status.textContent = '&#10003; ' + file.name + ' - ' + (d.rooms||[]).length + ' rooms, ' + (d.layers||[]).length + ' layers' + (d.has_preview ? ' - preview ready' : '');
+    toast(file.name.split('.').pop().toUpperCase() + ' parsed - ' + (d.rooms||[]).length + ' rooms found', 'nim');
+  } catch(e) {
+    status.textContent = '&#10007; ' + e.message;
+  }
 }
 
 // ── Build payload ─────────────────────────────────────────────────────────
 function payload(nimMode) {
-  const name = document.getElementById('projName').value.trim();
+  var name = document.getElementById('projName').value.trim();
   if (!name) { toast('Project name required','err'); return null; }
-  const draws = [...selectedDrawings];
+  var draws = Array.from(selectedDrawings);
   if (!draws.length) { toast('Select at least one drawing set','err'); return null; }
   return {
     project_name: name,
@@ -555,22 +608,22 @@ function payload(nimMode) {
 
 // ── API calls ─────────────────────────────────────────────────────────────
 async function postJSON(path, body) {
-  const r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  const d = await r.json();
+  var r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  var d = await r.json();
   if (!r.ok) throw new Error(d.detail && typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
   return d;
 }
 
 async function postBinary(path, body) {
-  const r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  var r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   if (!r.ok) {
-    const ct = r.headers.get('Content-Type') || '';
-    if (ct.includes('json')) {
-      const e = await r.json();
-      throw new Error(e.detail || `HTTP ${r.status}`);
+    var ct = r.headers.get('Content-Type') || '';
+    if (ct.indexOf('json') >= 0) {
+      var e = await r.json();
+      throw new Error(e.detail || 'HTTP ' + r.status);
     } else {
-      const txt = await r.text();
-      throw new Error(`Server error ${r.status}: ${txt.replace(/<[^>]+>/g,'').slice(0,120)}`);
+      var txt = await r.text();
+      throw new Error('Server error ' + r.status + ': ' + txt.replace(/<[^>]+>/g,'').slice(0,120));
     }
   }
   return r.blob();
@@ -582,38 +635,47 @@ function setLoading(on, msg) {
   document.getElementById('btnGen').disabled = on;
 }
 
-let _pi;
+var _pi;
 function startProg() {
-  const f = document.getElementById('progF'), t = document.getElementById('prog');
-  t.classList.add('on'); f.style.width = '0%'; let w = 0;
-  _pi = setInterval(() => { w = Math.min(w + Math.random() * 6, 88); f.style.width = w + '%'; }, 300);
+  var f = document.getElementById('progF'), t = document.getElementById('prog');
+  t.classList.add('on');
+  f.style.width = '0%';
+  var w = 0;
+  _pi = setInterval(function() { w = Math.min(w + Math.random() * 6, 88); f.style.width = w + '%'; }, 300);
 }
 function stopProg() {
   clearInterval(_pi);
   document.getElementById('progF').style.width = '100%';
-  setTimeout(() => { document.getElementById('prog').classList.remove('on'); document.getElementById('progF').style.width = '0'; }, 600);
+  setTimeout(function() {
+    document.getElementById('prog').classList.remove('on');
+    document.getElementById('progF').style.width = '0';
+  }, 600);
 }
 
 async function runValidate() {
-  const p = payload(false); if (!p) return;
-  setLoading(true, 'Running compliance check…');
+  var p = payload(false);
+  if (!p) return;
+  setLoading(true, 'Running compliance check...');
   log('Validating: ' + p.project_name, 'i');
   try {
-    const d = await postJSON('/api/validate', p);
+    var d = await postJSON('/api/validate', p);
     renderResults({compliance_report: d.compliance_report, drawings: [], drawing_count: 0, status: 'validate', engine: 'Compliance Engine'});
-    toast(d.compliance_report.is_compliant ? 'Compliant ✓' : d.compliance_report.blocking_count + ' error(s) found', d.compliance_report.is_compliant ? 'ok' : 'err');
+    toast(d.compliance_report.is_compliant ? 'Compliant &#10003;' : d.compliance_report.blocking_count + ' error(s) found', d.compliance_report.is_compliant ? 'ok' : 'err');
     log('Compliance: ' + d.compliance_report.summary, d.compliance_report.is_compliant ? 's' : 'e');
   } catch(e) { toast(e.message, 'err'); log(e.message, 'e'); }
   finally { setLoading(false); }
 }
 
 async function runDispatch() {
-  const p = payload(false); if (!p) return;
-  setLoading(true, 'Generating drawings…'); startProg();
+  var p = payload(false);
+  if (!p) return;
+  setLoading(true, 'Generating drawings...');
+  startProg();
   log('Dispatching: ' + p.project_name, 'i');
   try {
-    const d = await postJSON('/api/dispatch', p);
-    renderResults(d); lastJob = d;
+    var d = await postJSON('/api/dispatch', p);
+    renderResults(d);
+    lastJob = d;
     toast(d.drawing_count + ' sheet(s) generated', 'ok');
     log('Job complete: ' + d.drawing_count + ' sheets', 's');
   } catch(e) { toast(e.message, 'err'); log(e.message, 'e'); }
@@ -621,17 +683,20 @@ async function runDispatch() {
 }
 
 async function runNIM() {
-  const p = payload(true); if (!p) return;
-  const key = document.getElementById('apiKey').value;
+  var p = payload(true);
+  if (!p) return;
+  var key = document.getElementById('apiKey').value;
   if (!key) { toast('NVIDIA API key required. Add it in the Engine tab.', 'err'); return; }
   p.api_key = key;
-  setLoading(true, 'Stage 1: Vision…'); startProg();
+  setLoading(true, 'Stage 1: Vision...');
+  startProg();
   log('NIM pipeline: ' + p.project_name, 'n');
   try {
-    setTimeout(() => document.getElementById('ldrMsg').textContent = 'Stage 2: Generating manifest…', 3000);
-    setTimeout(() => document.getElementById('ldrMsg').textContent = 'Stage 3: Generating images…', 7000);
-    const d = await postJSON('/api/dispatch/nim', p);
-    renderResults(d); lastJob = d;
+    setTimeout(function(){document.getElementById('ldrMsg').textContent = 'Stage 2: Generating manifest...';}, 3000);
+    setTimeout(function(){document.getElementById('ldrMsg').textContent = 'Stage 3: Generating images...';}, 7000);
+    var d = await postJSON('/api/dispatch/nim', p);
+    renderResults(d);
+    lastJob = d;
     toast(d.drawing_count + ' sheet(s) generated by NVIDIA NIM', 'nim');
     log('NIM complete: ' + d.drawing_count + ' sheets', 's');
   } catch(e) { toast(e.message, 'err'); log(e.message, 'e'); }
@@ -640,42 +705,42 @@ async function runNIM() {
 
 // ── Render results ────────────────────────────────────────────────────────
 function renderResults(d) {
-  const el = document.getElementById('mpanel-results');
-  const r = d.compliance_report;
-  let html = '';
+  var el = document.getElementById('mpanel-results');
+  var r = d.compliance_report;
+  var html = '';
 
   if (r) {
-    html += '<div class="card"><div class="chdr"><div class="cico">📋</div>' +
+    html += '<div class="card"><div class="chdr"><div class="cico">&#128203;</div>' +
       '<div><div class="ct">Compliance Report</div><div class="cs">' + r.summary + '</div></div>' +
       '<span class="sb ' + (r.is_compliant ? 'sb-ok' : 'sb-fail') + '">' + (r.is_compliant ? 'PASS' : 'FAIL') + '</span></div>' +
       compBar(r) + finds(r.findings) + '</div>';
   }
 
   if (d.drawings && d.drawings.length) {
-    const hasImg = d.drawings.some(x => x.has_image && x.image_b64);
-    html += '<div class="card"><div class="chdr"><div class="cico nv">📄</div>' +
-      '<div><div class="ct">Drawing Manifest</div><div class="cs">' + d.drawing_count + ' sheet(s) · ' + (d.engine || '') + '</div></div></div>';
+    html += '<div class="card"><div class="chdr"><div class="cico nv">&#128196;</div>' +
+      '<div><div class="ct">Drawing Manifest</div><div class="cs">' + d.drawing_count + ' sheet(s) - ' + (d.engine || '') + '</div></div></div>';
     if (lastJob) {
-      html += '<div class="ebar"><div class="ebar-t">📦 Export</div>' +
-        '<button class="ebtn eb-pdf" onclick="dlPDF()">📄 PDF</button>' +
-        '<button class="ebtn eb-dxf" onclick="dlPackage()">⬇ Full Package</button></div>';
+      html += '<div class="ebar"><div class="ebar-t">&#128230; Export</div>' +
+        '<button class="ebtn eb-pdf" onclick="dlPDF()">&#128196; PDF</button>' +
+        '<button class="ebtn eb-dxf" onclick="dlPackage()">&#11015; Full Package</button></div>';
     }
-    html += '<div class="sg">' + d.drawings.map((dr, i) => sheetCard(dr, i)).join('') + '</div></div>';
+    html += '<div class="sg">' + d.drawings.map(function(dr, i){return sheetCard(dr, i);}).join('') + '</div></div>';
     setupChat(d.drawings);
   }
 
   if (!html) {
-    html = '<div class="empty"><div style="font-size:48px">✓</div><p>Done</p></div>';
+    html = '<div class="empty"><div style="font-size:48px">&#10003;</div><p>Done</p></div>';
   }
 
   el.innerHTML = html;
-  document.getElementById('emptyState') && (document.getElementById('emptyState').style.display = 'none');
+  var es = document.getElementById('emptyState');
+  if (es) es.style.display = 'none';
   mtab('results');
 }
 
 function sheetCard(d, i) {
-  const hasImg = d.has_image && d.image_b64;
-  let h = '<div class="sc">';
+  var hasImg = d.has_image && d.image_b64;
+  var h = '<div class="sc">';
   if (hasImg) {
     h += '<img src="data:image/png;base64,' + d.image_b64 + '" style="width:100%;border-radius:4px;margin-bottom:6px;cursor:pointer" onclick="openModal(this.src)"/>';
   }
@@ -683,13 +748,13 @@ function sheetCard(d, i) {
     '<div class="stit">' + esc(d.title || '') + '</div>' +
     '<div class="stype">' + esc(d.sheet_type || '') + '</div>' +
     '<span class="stag">' + (d.format || 'JSON') + '</span>' +
-    '<button onclick="selSheet(' + i + ')" style="margin-top:6px;font-size:.68rem;padding:3px 8px;background:var(--surf3);border:1px solid var(--bdr);border-radius:4px;cursor:pointer;color:var(--txt2)">💬 Refine</button>' +
+    '<button onclick="selSheet(' + i + ')" style="margin-top:6px;font-size:.68rem;padding:3px 8px;background:var(--surf3);border:1px solid var(--bdr);border-radius:4px;cursor:pointer;color:var(--txt2)">&#128172; Refine</button>' +
     '</div>';
   return h;
 }
 
 function compBar(r) {
-  return '<div class="cbar"><span style="font-size:1rem">' + (r.is_compliant ? '✅' : '🔴') + '</span>' +
+  return '<div class="cbar"><span style="font-size:1rem">' + (r.is_compliant ? '&#9989;' : '&#128308;') + '</span>' +
     '<div class="cbar-s"><div class="cbar-t">' + (r.is_compliant ? 'Specification Compliant' : 'Compliance Failures') + '</div>' +
     '<div class="cbar-sub">' + r.summary + '</div></div>' +
     '<div class="cnums">' +
@@ -699,9 +764,9 @@ function compBar(r) {
 }
 
 function finds(fs) {
-  if (!fs || !fs.length) return '<p style="color:var(--grn);font-size:.78rem;padding:4px 0">No findings – fully compliant ✓</p>';
-  return '<div class="finds">' + fs.map(f => {
-    const s = f.severity || 'INFO';
+  if (!fs || !fs.length) return '<p style="color:var(--grn);font-size:.78rem;padding:4px 0">No findings - fully compliant &#10003;</p>';
+  return '<div class="finds">' + fs.map(function(f) {
+    var s = f.severity || 'INFO';
     return '<div class="fi fi-' + s + '">' +
       '<div><span class="sev sev-' + s + '">' + s + '</span><span style="font-family:var(--mono);font-size:.68rem;color:var(--txt3)">' + esc(f.rule_id || '') + '</span></div>' +
       '<div class="fi-sec">' + esc(f.code_section || '') + '</div>' +
@@ -713,12 +778,11 @@ function finds(fs) {
 
 // ── Export ────────────────────────────────────────────────────────────────
 function stripJob(job) {
-  // Remove image_b64 fields before sending to export - Vercel has 4.5MB body limit
   if (!job) return job;
-  const j = {...job};
+  var j = Object.assign({}, job);
   if (j.drawings) {
-    j.drawings = j.drawings.map(d => {
-      const d2 = {...d};
+    j.drawings = j.drawings.map(function(d) {
+      var d2 = Object.assign({}, d);
       delete d2.image_b64;
       return d2;
     });
@@ -728,14 +792,10 @@ function stripJob(job) {
 
 async function dlPDF() {
   if (!lastJob) return;
-  toast('Generating PDF…','info');
-  const name = (lastJob.project_name||'project').replace(/\s+/g,'_');
+  toast('Generating PDF...','info');
+  var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
-    // Try job-ID endpoint first (avoids Vercel 4.5MB body limit)
-    const b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)});
-    } else {
-      b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)});
-    }
+    var b = await postBinary('/api/export/pdf', {job: stripJob(lastJob)});
     dlBlob(b, name+'_construction.pdf');
     toast('PDF downloaded','ok');
   } catch(e) { toast(e.message,'err'); log('PDF: '+e.message,'e'); }
@@ -743,21 +803,21 @@ async function dlPDF() {
 
 async function dlPackage() {
   if (!lastJob) return;
-  toast('Building package…','info');
-  const name = (lastJob.project_name||'project').replace(/\s+/g,'_');
+  toast('Building package...','info');
+  var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
-    const b = await postBinary('/api/export/package', {job: stripJob(lastJob)});
-    } else {
-      b = await postBinary('/api/export/package', {job: stripJob(lastJob)});
-    }
+    var b = await postBinary('/api/export/package', {job: stripJob(lastJob)});
     dlBlob(b, name+'_construction_set.zip');
     toast('Package downloaded','ok');
   } catch(e) { toast(e.message,'err'); log('Package: '+e.message,'e'); }
 }
 
 function dlBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -765,66 +825,77 @@ function dlBlob(blob, filename) {
 function setupChat(drawings) {
   if (!drawings || !drawings.length) return;
   lastDrawings = drawings;
-  const sel = document.getElementById('sheetSel');
-  sel.innerHTML = drawings.map((d, i) => '<option value="' + i + '">' + (d.sheet_number||'') + ' – ' + (d.title||'Sheet') + '</option>').join('');
+  var sel = document.getElementById('sheetSel');
+  sel.innerHTML = drawings.map(function(d, i) {
+    return '<option value="' + i + '">' + (d.sheet_number||'') + ' - ' + (d.title||'Sheet') + '</option>';
+  }).join('');
   document.getElementById('chatSection').style.display = 'flex';
-  chatHistory = []; currentSheet = 0;
-  document.getElementById('chatBody').innerHTML = '<div class="ma msg">✅ ' + drawings.length + ' sheet(s) generated. Select a sheet and ask me to refine it.</div>';
+  chatHistory = [];
+  currentSheet = 0;
+  document.getElementById('chatBody').innerHTML = '<div class="ma msg">&#10003; ' + drawings.length + ' sheet(s) generated. Select a sheet and ask me to refine it.</div>';
 }
 
 function selSheet(idx) {
   currentSheet = idx;
   document.getElementById('sheetSel').value = idx;
-  const d = lastDrawings[idx];
+  var d = lastDrawings[idx];
   addMsg('ai', 'Selected ' + (d.sheet_number||'sheet') + ': "' + (d.title||'') + '". What would you like to change?');
 }
 
 async function sendChat() {
-  const inp = document.getElementById('chatIn');
-  const msg = inp.value.trim(); if (!msg) return;
-  const key = document.getElementById('apiKey').value;
+  var inp = document.getElementById('chatIn');
+  var msg = inp.value.trim();
+  if (!msg) return;
+  var key = document.getElementById('apiKey').value;
   if (!key) { toast('NVIDIA API key required for chat refinement','err'); return; }
-  addMsg('user', msg); inp.value = '';
-  const d = lastDrawings[currentSheet]; if (!d) return;
-  addMsg('ai', '⏳ Thinking…');
+  addMsg('user', msg);
+  inp.value = '';
+  var d = lastDrawings[currentSheet];
+  if (!d) return;
+  addMsg('ai', '&#8987; Thinking...');
   try {
-    const r = await postJSON('/api/chat/refine', {
-      sheet_number: d.sheet_number, sheet_title: d.title,
-      instruction: msg, key_notes: d.key_notes||[], drawing_prompt: d.drawing_prompt||'',
-      history: chatHistory.slice(-6), api_key: key,
+    var r = await postJSON('/api/chat/refine', {
+      sheet_number: d.sheet_number,
+      sheet_title: d.title,
+      instruction: msg,
+      key_notes: d.key_notes||[],
+      drawing_prompt: d.drawing_prompt||'',
+      history: chatHistory.slice(-6),
+      api_key: key,
     });
-    const cb = document.getElementById('chatBody');
+    var cb = document.getElementById('chatBody');
     cb.removeChild(cb.lastChild);
     addMsg('ai', r.reply);
     chatHistory.push({role:'user',content:msg},{role:'assistant',content:r.reply});
     if (r.key_notes) lastDrawings[currentSheet].key_notes = r.key_notes;
     toast('Sheet refined by Llama 3.1','nim');
   } catch(e) {
-    const cb = document.getElementById('chatBody');
-    cb.removeChild(cb.lastChild);
+    var cb2 = document.getElementById('chatBody');
+    cb2.removeChild(cb2.lastChild);
     addMsg('ai', 'Error: ' + e.message);
   }
 }
 
 function addMsg(role, text) {
-  const cb = document.getElementById('chatBody');
-  const el = document.createElement('div');
+  var cb = document.getElementById('chatBody');
+  var el = document.createElement('div');
   el.className = 'msg ' + (role==='user' ? 'mu' : 'ma');
   el.textContent = text;
-  cb.appendChild(el); cb.scrollTop = cb.scrollHeight;
+  cb.appendChild(el);
+  cb.scrollTop = cb.scrollHeight;
 }
 
 // ── Floor Plan Generator ──────────────────────────────────────────────────
 async function genFP() {
-  const desc = document.getElementById('fpDesc').value.trim();
+  var desc = document.getElementById('fpDesc').value.trim();
   if (!desc || desc.length < 10) { toast('Describe your floor plan first','err'); return; }
-  const btn = document.getElementById('fpBtn');
+  var btn = document.getElementById('fpBtn');
   btn.disabled = true;
-  document.getElementById('fpStatus').textContent = 'Generating…';
+  document.getElementById('fpStatus').textContent = 'Generating...';
   document.getElementById('fpResult').style.display = 'none';
-  log('Generating floor plan…','n');
+  log('Generating floor plan...','n');
   try {
-    const d = await postJSON('/api/generate/floorplan', {
+    var d = await postJSON('/api/generate/floorplan', {
       description: desc,
       project_name: document.getElementById('fpName').value || 'My Project',
       building_type: getRo('fpBtg'),
@@ -834,23 +905,28 @@ async function genFP() {
     });
     fpData = d;
     document.getElementById('fpStats').innerHTML = [
-      ['Rooms', d.room_count], ['Total SF', Math.round(d.total_sqft)],
-      ['Occupants', d.occupant_load], ['Building', Math.round(d.building_w_ft) + '×' + Math.round(d.building_d_ft) + ' ft'],
-    ].map(([l,v]) => '<div class="stat"><div class="n">' + v + '</div><div class="l">' + l + '</div></div>').join('');
+      ['Rooms', d.room_count],
+      ['Total SF', Math.round(d.total_sqft)],
+      ['Occupants', d.occupant_load],
+      ['Building', Math.round(d.building_w_ft) + 'x' + Math.round(d.building_d_ft) + ' ft']
+    ].map(function(item) {
+      return '<div class="stat"><div class="n">' + item[1] + '</div><div class="l">' + item[0] + '</div></div>';
+    }).join('');
     document.getElementById('fpSvg').innerHTML = d.svg_data || '';
-    document.getElementById('fpRooms').innerHTML = (d.rooms||[]).map(r =>
-      '<div class="frc"><div class="frn">' + esc(r.name) + '</div>' +
-      '<div class="frsf">' + Math.round(r.sqft) + ' SF</div>' +
-      '<div class="frm">' + Math.round(r.width_ft) + '×' + Math.round(r.depth_ft) + ' ft · ' + r.zone + '</div>' +
-      (r.occupant_load > 0 ? '<div class="frm">' + r.occupant_load + ' occupants</div>' : '') + '</div>'
-    ).join('');
+    document.getElementById('fpRooms').innerHTML = (d.rooms||[]).map(function(r) {
+      return '<div class="frc"><div class="frn">' + esc(r.name) + '</div>' +
+        '<div class="frsf">' + Math.round(r.sqft) + ' SF</div>' +
+        '<div class="frm">' + Math.round(r.width_ft) + 'x' + Math.round(r.depth_ft) + ' ft - ' + r.zone + '</div>' +
+        (r.occupant_load > 0 ? '<div class="frm">' + r.occupant_load + ' occupants</div>' : '') + '</div>';
+    }).join('');
     document.getElementById('fpResult').style.display = 'block';
-    document.getElementById('fpStatus').textContent = '✓ ' + d.room_count + ' rooms · ' + Math.round(d.total_sqft) + ' SF · ' + d.parser_mode + ' parser';
-    toast('Floor plan generated – ' + d.room_count + ' rooms, ' + Math.round(d.total_sqft) + ' SF','nim');
+    document.getElementById('fpStatus').textContent = '&#10003; ' + d.room_count + ' rooms - ' + Math.round(d.total_sqft) + ' SF - ' + d.parser_mode + ' parser';
+    toast('Floor plan generated - ' + d.room_count + ' rooms, ' + Math.round(d.total_sqft) + ' SF','nim');
     log('Floor plan: ' + d.room_count + ' rooms, ' + Math.round(d.total_sqft) + ' SF','s');
   } catch(e) {
-    document.getElementById('fpStatus').textContent = '✗ ' + e.message;
-    toast(e.message,'err'); log(e.message,'e');
+    document.getElementById('fpStatus').textContent = '&#10007; ' + e.message;
+    toast(e.message,'err');
+    log(e.message,'e');
   } finally { btn.disabled = false; }
 }
 
@@ -862,7 +938,7 @@ function dlFpSvg() {
 
 function dlFpDxf() {
   if (!fpData || !fpData.dxf_b64) return;
-  const bytes = Uint8Array.from(atob(fpData.dxf_b64), c => c.charCodeAt(0));
+  var bytes = Uint8Array.from(atob(fpData.dxf_b64), function(c){return c.charCodeAt(0);});
   dlBlob(new Blob([bytes],{type:'application/dxf'}), (fpData.project_name||'floorplan').replace(/\s+/g,'_')+'_A1.0.dxf');
   toast('DXF downloaded','ok');
 }
@@ -875,23 +951,24 @@ function openModal(src) {
 
 // ── Utilities ─────────────────────────────────────────────────────────────
 function log(msg, type) {
-  const p = document.getElementById('log');
-  const t = new Date().toLocaleTimeString('en-US',{hour12:false});
-  const colors = {i:'var(--acc)',s:'var(--grn)',e:'var(--err)',w:'var(--warn)',n:'var(--nv)'};
-  const el = document.createElement('div');
+  var p = document.getElementById('log');
+  var t = new Date().toLocaleTimeString('en-US',{hour12:false});
+  var colors = {i:'var(--acc)',s:'var(--grn)',e:'var(--err)',w:'var(--warn)',n:'var(--nv)'};
+  var el = document.createElement('div');
   el.style.color = colors[type] || 'var(--txt3)';
   el.textContent = t + '  ' + msg;
-  p.appendChild(el); p.scrollTop = p.scrollHeight;
+  p.appendChild(el);
+  p.scrollTop = p.scrollHeight;
 }
 
 function toast(msg, type) {
-  const c = document.getElementById('toasts');
-  const el = document.createElement('div');
-  const cls = {ok:'tok',err:'terr',info:'tinfo',nim:'tnim'};
+  var c = document.getElementById('toasts');
+  var el = document.createElement('div');
+  var cls = {ok:'tok',err:'terr',info:'tinfo',nim:'tnim'};
   el.className = 'toast ' + (cls[type]||'tinfo');
   el.textContent = msg;
   c.appendChild(el);
-  setTimeout(() => el.remove(), 4000);
+  setTimeout(function(){el.remove();}, 4000);
 }
 
 function esc(s) {
@@ -899,7 +976,7 @@ function esc(s) {
 }
 
 // ── Fallback meta ─────────────────────────────────────────────────────────
-const FALLBACK = {
+var FALLBACK = {
   building_types: ['Commercial','Residential'],
   occupancy_groups: {
     Commercial: ['A-1','A-2','A-3','A-4','A-5','B','E','F-1','F-2','H-1','H-2','H-3','H-4','H-5','I-1','I-2','I-3','I-4','M','S-1','S-2','U'],
