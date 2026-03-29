@@ -1,22 +1,26 @@
 """
-export_engine.py
-================
-Professional PDF and DXF/DWG export for the Architectural AI Platform.
+export_engine.py  –  Professional Architectural Drawing Set Export
+==================================================================
+Produces real drawn architectural sheets that look like permit drawings.
 
-PDF  – reportlab: multi-page permit-ready construction document set
-       Page 1    : Cover sheet (project info + stamp block)
-       Page 2    : Drawing index + compliance summary
-       Pages 3+  : Per-sheet detail (code refs, ADA notes, key notes)
+Sheet types
+-----------
+  Cover     : project data, code summary, compliance stamp
+  A1.0      : Floor Plan – dimensioned, walls filled, doors, windows, notes
+  A3.0      : Exterior Elevations – all 4 elevations schematic
+  C2.0      : Site Plan – building footprint on site grid
+  S4.0      : Structural – column grid + framing notes
+  FP5.0     : Fire & Life Safety – egress, exit signs, extinguisher locations
 
-DXF  – ezdxf (R2010 / AutoCAD 2010 compatible):
-       AIA-standard layer structure
-       ANSI D title block (34" × 22") per sheet
-       Walls, doors, windows, dimensions, annotations
-       North arrow + scale bar on floor plan sheets
-       All text follows AIA CAD Layer Guidelines v6
+Each sheet
+----------
+  • ANSI D sheet border   (34" × 22"  /  2448 × 1584 pt)
+  • AIA title block at bottom-right
+  • Drawing border, binding margin, revision block
+  • Scale bar + north arrow on plan sheets
+  • All line weights follow AIA CAD standards
 
-Both formats are generated from the job payload returned by /api/dispatch
-or /api/dispatch/nim — no re-inference required.
+DXF sheets use AIA layer structure with proper linetypes and weights.
 """
 
 from __future__ import annotations
@@ -25,961 +29,1454 @@ import io
 import math
 import zipfile
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-# ── PDF ──────────────────────────────────────────────────────────────────
-from reportlab.lib.colors import (
-    Color, HexColor, black, white, grey, lightgrey
-)
-from reportlab.lib.pagesizes import landscape, letter
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+import fitz                             # PyMuPDF – SVG→PNG rendering
+from reportlab.lib.colors import Color, HexColor, black, white
+from reportlab.lib.pagesizes import landscape
 from reportlab.lib.units import inch
-from reportlab.pdfbase.pdfmetrics import registerFont
 from reportlab.pdfgen import canvas as rl_canvas
-from reportlab.platypus import (
-    BaseDocTemplate, Frame, HRFlowable, PageTemplate,
-    Paragraph, Spacer, Table, TableStyle
-)
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
-# ── DXF ──────────────────────────────────────────────────────────────────
-import ezdxf
-from ezdxf import colors as dxf_colors
-from ezdxf.enums import TextEntityAlignment
+# ── Sheet constants (ANSI D  34" × 22") ─────────────────────────────────
+PW, PH      = 34 * 72, 22 * 72      # 2448 × 1584 pts
+BDR_L       = 1.50 * inch            # left border  (binding)
+BDR_R       = 0.50 * inch
+BDR_T       = 0.50 * inch
+TB_H        = 1.50 * inch            # title block height
+DRAW_X0     = BDR_L                  # drawing area
+DRAW_Y0     = TB_H
+DRAW_X1     = PW - BDR_R
+DRAW_Y1     = PH - BDR_T
+DRAW_W      = DRAW_X1 - DRAW_X0
+DRAW_H      = DRAW_Y1 - DRAW_Y0
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
+# ── Colours ──────────────────────────────────────────────────────────────
+C_BLK   = black
+C_WHT   = white
+C_WALL  = HexColor('#111111')        # exterior wall fill
+C_WINT  = HexColor('#333333')        # interior wall
+C_ROOM  = HexColor('#f7f4ee')        # room fill
+C_CORE  = HexColor('#ebe6d8')        # restroom/mech fill
+C_CIRC  = HexColor('#f0ece0')        # corridor fill
+C_DIM   = HexColor('#154360')        # dimension colour
+C_NOTE  = HexColor('#1a1a1a')
+C_GRID  = HexColor('#c8cdd8')
+C_WIN   = HexColor('#4a90d9')        # window glazing
+C_DOOR  = HexColor('#1a1a1a')
+C_EXIT  = HexColor('#c0392b')
+C_STAIR = HexColor('#5d6d7e')
+C_TBKG  = HexColor('#1a3a5c')        # title block dark blue
+C_TACC  = HexColor('#4a9eff')
+C_TSUB  = HexColor('#8ab4d4')
+C_GRN   = HexColor('#1e8449')
+C_RED   = HexColor('#c0392b')
 
-BRAND_DARK   = HexColor("#0f1420")
-BRAND_BLUE   = HexColor("#4a9eff")
-BRAND_GREEN  = HexColor("#76b900")   # NVIDIA green / compliance pass
-BRAND_WARN   = HexColor("#f59e0b")
-BRAND_ERROR  = HexColor("#ef4444")
-BRAND_LIGHT  = HexColor("#e2e8f0")
-BRAND_MID    = HexColor("#64748b")
-BRAND_SURF   = HexColor("#1e2540")
+# ── Architectural wall thicknesses (feet) ────────────────────────────────
+EXT_WALL_T  = 0.67      # 8"  exterior
+INT_WALL_T  = 0.50      # 6"  interior bearing
+PART_WALL_T = 0.33      # 4"  partition
 
-PAGE_W, PAGE_H = landscape(letter)   # 11" × 8.5"
-
-# AIA Layer Names (AIA CAD Layer Guidelines v6)
-LAYERS = {
-    "BORDER":  ("A-ANNO-BORD",  7,   25),   # (name, ACI color, lineweight µm)
-    "TITLEBLK":("A-ANNO-TITL",  7,   50),
-    "WALL":    ("A-WALL",       7,   50),
-    "WALL_INT":("A-WALL-INTR",  7,   35),
-    "DOOR":    ("A-DOOR",       7,   35),
-    "WINDOW":  ("A-GLAZ",       4,   25),
-    "DIM":     ("A-ANNO-DIMS",  2,   18),
-    "TEXT":    ("A-ANNO-TEXT",  7,   18),
-    "GRID":    ("A-GRID",       8,   18),
-    "NORTH":   ("A-ANNO-NRTH",  7,   25),
-    "FILLED":  ("A-AREA",       8,   18),
-    "HATCH":   ("A-FLOR-PATT",  8,   18),
-}
+def _now(): return datetime.now().strftime('%m/%d/%Y')
+def _yr():  return datetime.now().strftime('%Y')
 
 
-# ---------------------------------------------------------------------------
-# PDF Export
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────
+#  Room layout engine  (also used by floorplan_generator but self-contained)
+# ─────────────────────────────────────────────────────────────────────────
 
-class PDFExporter:
-    """Generates a multi-page permit-ready PDF construction document set."""
+def _canonical_rooms(job: Dict) -> List[Dict]:
+    """Return a list of rooms with name/zone/width_ft/depth_ft/sqft."""
+    rooms = job.get('rooms', [])
+    if rooms:
+        return rooms
 
-    def __init__(self, job: Dict[str, Any]) -> None:
-        self.job     = job
-        self.project = job.get("project_name", "Unnamed Project")
-        self.engine  = job.get("engine", "AI Platform")
-        self.report  = job.get("compliance_report") or {}
-        self.drawings: List[Dict] = job.get("drawings", [])
-        self.timings  = job.get("stage_timings", {})
-        self.now      = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        self._buf     = io.BytesIO()
+    sqft = float(job.get('gross_sq_ft') or 10000)
+    stories = int(job.get('num_stories') or 1)
+    floor_sqft = sqft / stories
 
-    # ── Public ────────────────────────────────────────────────────────────
-
-    def generate(self) -> bytes:
-        """Return the complete PDF as bytes."""
-        c = rl_canvas.Canvas(self._buf, pagesize=landscape(letter))
-        c.setTitle(f"{self.project} – Construction Documents")
-        c.setAuthor("Architectural AI Platform")
-        c.setSubject("IBC 2023 Compliant Construction Document Set")
-
-        self._cover(c)
-        self._drawing_index(c)
-        self._compliance_page(c)
-        for i, drw in enumerate(self.drawings):
-            self._sheet_page(c, drw, i + 1)
-
-        c.save()
-        return self._buf.getvalue()
-
-    # ── Pages ─────────────────────────────────────────────────────────────
-
-    def _cover(self, c: rl_canvas.Canvas) -> None:
-        c.setPageSize(landscape(letter))
-        W, H = PAGE_W, PAGE_H
-
-        # Background
-        c.setFillColor(BRAND_DARK)
-        c.rect(0, 0, W, H, fill=1, stroke=0)
-
-        # Left accent bar
-        c.setFillColor(BRAND_BLUE)
-        c.rect(0, 0, 0.35 * inch, H, fill=1, stroke=0)
-
-        # Bottom accent bar
-        c.setFillColor(BRAND_SURF)
-        c.rect(0, 0, W, 1.2 * inch, fill=1, stroke=0)
-
-        # Project title
-        c.setFillColor(BRAND_LIGHT)
-        c.setFont("Helvetica-Bold", 28)
-        c.drawString(0.75 * inch, H - 1.5 * inch, self.project)
-
-        c.setFillColor(BRAND_BLUE)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(0.75 * inch, H - 1.9 * inch, "CONSTRUCTION DOCUMENT SET")
-
-        # Divider
-        c.setStrokeColor(BRAND_BLUE)
-        c.setLineWidth(1.5)
-        c.line(0.75 * inch, H - 2.1 * inch, W - 0.75 * inch, H - 2.1 * inch)
-
-        # Metadata table
-        meta_rows = [
-            ("Building Type",  self.job.get("building_type", "—")),
-            ("Occupancy Group",self.job.get("occupancy_group", "—")),
-            ("Construction Type", self.job.get("construction_type", "—")),
-            ("Primary Code",   self.job.get("primary_code", "IBC 2023")),
-            ("Jurisdiction",   self.job.get("jurisdiction_name", "—")),
-            ("Sprinklered",    "Yes (NFPA 13)" if self.job.get("sprinklered") else "No"),
-            ("Drawing Sheets", str(len(self.drawings))),
-            ("Engine",         self.engine),
-            ("Generated",      self.now),
+    bt = job.get('building_type', 'Commercial')
+    if bt == 'Residential':
+        program = [
+            ('Master Bedroom',  'perimeter', 14, 16),
+            ('Bedroom 2',       'perimeter', 12, 13),
+            ('Bedroom 3',       'perimeter', 11, 12),
+            ('Living Room',     'circulation', 20, 18),
+            ('Kitchen',         'perimeter', 14, 15),
+            ('Dining Room',     'perimeter', 12, 14),
+            ('Master Bath',     'core', 9,  11),
+            ('Bath',            'core', 7,  9),
+            ('Garage',          'perimeter', 20, 22),
+            ('Laundry',         'core', 7,  8),
+        ]
+    else:
+        program = [
+            ('Open Office',     'perimeter', 40, 30),
+            ('Private Office',  'perimeter', 12, 14),
+            ('Private Office',  'perimeter', 12, 14),
+            ('Conference Room', 'perimeter', 20, 22),
+            ('Break Room',      'perimeter', 14, 16),
+            ('Reception',       'circulation', 20, 18),
+            ('Lobby',           'circulation', 24, 20),
+            ('Restroom – M',    'core', 10, 13),
+            ('Restroom – W',    'core', 10, 13),
+            ('Mechanical',      'core', 10, 12),
+            ('Storage',         'core', 10, 12),
+            ('Corridor',        'circulation', 6,  50),
         ]
 
-        x1, x2, y = 0.75 * inch, 4.5 * inch, H - 2.6 * inch
-        for label, value in meta_rows:
-            c.setFillColor(BRAND_MID)
-            c.setFont("Helvetica", 8.5)
-            c.drawString(x1, y, label.upper())
-            c.setFillColor(BRAND_LIGHT)
-            c.setFont("Helvetica-Bold", 9)
-            c.drawString(x2, y, str(value))
-            y -= 0.27 * inch
+    # Scale to target sqft
+    total = sum(w*d for _,_,w,d in program)
+    scale = math.sqrt(floor_sqft / max(total, 1))
+    rooms = []
+    for name, zone, w, d in program:
+        sw = max(8.0, w * scale)
+        sd = max(8.0, d * scale)
+        rooms.append({'name': name, 'zone': zone,
+                      'width_ft': round(sw,1), 'depth_ft': round(sd,1),
+                      'sqft': round(sw * sd)})
+    return rooms
 
-        # Compliance badge
-        comp = self.report.get("is_compliant", True)
-        badge_x = W - 3.2 * inch
-        badge_y = H - 4.2 * inch
-        badge_color = BRAND_GREEN if comp else BRAND_ERROR
-        c.setFillColor(badge_color)
-        c.roundRect(badge_x, badge_y, 2.4 * inch, 0.55 * inch, 6, fill=1, stroke=0)
-        c.setFillColor(white)
-        c.setFont("Helvetica-Bold", 11)
-        status_text = "✓  COMPLIANT" if comp else "✗  NON-COMPLIANT"
-        c.drawCentredString(badge_x + 1.2 * inch, badge_y + 0.17 * inch, status_text)
 
-        # Compliance numbers
-        c.setFillColor(BRAND_LIGHT)
-        c.setFont("Helvetica", 8.5)
-        c.drawString(badge_x, badge_y - 0.25 * inch,
-            f"Errors: {self.report.get('blocking_count',0)}   "
-            f"Warnings: {self.report.get('warning_count',0)}")
+def _layout(rooms: List[Dict]) -> Tuple[List[Dict], float, float]:
+    """
+    Place rooms into a strip-zone layout.
+    Returns (placed_rooms, building_w_ft, building_d_ft).
+    Each room gets _x, _y, _w, _d keys (feet from building origin).
+    """
+    GAP   = 0.4
+    MAR   = 1.5
+    COR_W = 5.0
 
-        # Sheet count
-        c.setFillColor(BRAND_BLUE)
-        c.setFont("Helvetica-Bold", 48)
-        c.drawRightString(W - 0.75 * inch, H - 3.8 * inch, str(len(self.drawings)))
-        c.setFillColor(BRAND_MID)
-        c.setFont("Helvetica", 10)
-        c.drawRightString(W - 0.75 * inch, H - 4.05 * inch, "SHEETS")
+    circ  = [r for r in rooms if r.get('zone') == 'circulation']
+    core  = [r for r in rooms if r.get('zone') == 'core']
+    peri  = [r for r in rooms if r.get('zone') == 'perimeter']
 
-        # Footer
-        c.setFillColor(BRAND_MID)
-        c.setFont("Helvetica", 7.5)
-        c.drawString(0.75 * inch, 0.45 * inch,
-            "GENERATED BY ARCHITECTURAL AI PLATFORM  |  IBC 2023  |  REVIEW REQUIRED PRIOR TO PERMIT SUBMISSION")
-        c.drawRightString(W - 0.75 * inch, 0.45 * inch,
-            f"Page 1 of {len(self.drawings) + 3}")
+    # Estimate building width from widest strip
+    bw_raw = max(
+        sum(r.get('width_ft',12) for r in circ) + max(len(circ)-1,0)*GAP if circ else 0,
+        sum(r.get('width_ft',12) for r in core) + max(len(core)-1,0)*GAP if core else 0,
+        sum(r.get('width_ft',12) for r in peri[:4]) + 3*GAP if peri else 0,
+    )
+    bw = max(bw_raw, 40.0) + 2 * MAR
+    bw = math.ceil(bw / 5) * 5
 
-        c.showPage()
+    placed = []
+    cy = MAR  # cursor y
 
-    def _drawing_index(self, c: rl_canvas.Canvas) -> None:
-        W, H = PAGE_W, PAGE_H
-        self._page_frame(c, "G0.0", "Drawing Index", 2)
+    # Lobby / circulation strip
+    if circ:
+        cx = MAR
+        row_d = max(r.get('depth_ft',18) for r in circ)
+        avail = bw - 2*MAR
+        col_w = avail / len(circ) - GAP
+        for r in circ:
+            r2 = dict(r)
+            r2['_x'] = cx; r2['_y'] = cy
+            r2['_w'] = max(12.0, col_w)
+            r2['_d'] = r2.get('depth_ft', row_d)
+            placed.append(r2); cx += r2['_w'] + GAP
+        cy += row_d + GAP
 
-        y = H - 1.6 * inch
+    # Corridor
+    has_cor = any('corridor' in r.get('name','').lower() for r in placed)
+    if not has_cor and peri:
+        cor = {'name': 'Corridor', 'zone': 'circulation',
+               '_x': MAR, '_y': cy, '_w': bw - 2*MAR, '_d': COR_W,
+               'sqft': int((bw-2*MAR) * COR_W)}
+        placed.append(cor); cy += COR_W + GAP
+    else:
+        # Widen existing corridor
+        for r in placed:
+            if 'corridor' in r.get('name','').lower():
+                r['_w'] = bw - 2*MAR; r['_d'] = COR_W
 
-        # Table header
-        cols = [("SHEET NO.", 1.1), ("TITLE", 4.2), ("DISCIPLINE", 1.5),
-                ("SCALE", 1.3), ("FORMAT", 0.9)]
+    # Perimeter rooms in rows of 4
+    ROW = 4
+    for i in range(0, len(peri), ROW):
+        row = peri[i:i+ROW]
+        row_d = max(r.get('depth_ft',14) for r in row)
+        avail = bw - 2*MAR
+        col_w = avail / len(row) - GAP
+        cx = MAR
+        for r in row:
+            r2 = dict(r)
+            r2['_x'] = cx; r2['_y'] = cy
+            r2['_w'] = max(8.0, col_w); r2['_d'] = row_d
+            placed.append(r2); cx += r2['_w'] + GAP
+        cy += row_d + GAP
 
-        c.setFillColor(BRAND_SURF)
-        c.rect(0.5 * inch, y - 0.02 * inch, W - 1.0 * inch, 0.28 * inch, fill=1, stroke=0)
+    # Core strip
+    if core:
+        avail = bw - 2*MAR
+        col_w = avail / len(core) - GAP
+        row_d = max(r.get('depth_ft',12) for r in core)
+        cx = MAR
+        for r in core:
+            r2 = dict(r)
+            r2['_x'] = cx; r2['_y'] = cy
+            r2['_w'] = max(8.0, col_w); r2['_d'] = row_d
+            placed.append(r2); cx += r2['_w'] + GAP
+        cy += row_d + GAP
 
-        x = 0.6 * inch
-        for hdr, w in cols:
-            c.setFillColor(BRAND_BLUE)
-            c.setFont("Helvetica-Bold", 7.5)
-            c.drawString(x, y + 0.06 * inch, hdr)
-            x += w * inch
+    bd = cy + MAR
+    bd = math.ceil(bd / 5) * 5
+    return placed, bw, bd
 
-        y -= 0.28 * inch
-        c.setStrokeColor(BRAND_SURF)
-        c.setLineWidth(0.5)
 
-        for i, drw in enumerate(self.drawings):
-            bg = BRAND_DARK if i % 2 == 0 else HexColor("#151929")
-            c.setFillColor(bg)
-            c.rect(0.5 * inch, y - 0.04 * inch, W - 1.0 * inch, 0.26 * inch, fill=1, stroke=0)
+# ─────────────────────────────────────────────────────────────────────────
+#  Drawing primitives
+# ─────────────────────────────────────────────────────────────────────────
 
-            row_data = [
-                (drw.get("sheet_number","—"), 1.1, "Helvetica-Bold", BRAND_BLUE),
-                (drw.get("title","—")[:52], 4.2, "Helvetica", BRAND_LIGHT),
-                (drw.get("discipline","Architecture")[:20], 1.5, "Helvetica", BRAND_LIGHT),
-                (drw.get("scale","1/8\"=1'-0\"")[:16], 1.3, "Helvetica", BRAND_MID),
-                (drw.get("format","PDF"), 0.9, "Helvetica", BRAND_MID),
-            ]
-            x = 0.6 * inch
-            for val, w, font, col in row_data:
-                c.setFillColor(col)
-                c.setFont(font, 8)
-                c.drawString(x, y + 0.04 * inch, str(val))
-                x += w * inch
+def _title_block(c: rl_canvas.Canvas, job: Dict, sheet_num: str,
+                 sheet_title: str, scale_str: str, total: int):
+    """Draw AIA-style title block."""
+    # Background
+    c.setFillColor(C_TBKG)
+    c.rect(0, 0, PW, TB_H, fill=1, stroke=0)
 
-            y -= 0.26 * inch
-            if y < 1.2 * inch:
-                break
+    # Outer border
+    c.setStrokeColor(HexColor('#2a4a6a'))
+    c.setLineWidth(1.5)
+    c.rect(0, 0, PW, TB_H, fill=0, stroke=1)
 
-        c.showPage()
+    # Column dividers
+    cols = [BDR_L + 0.25*inch,
+            PW * 0.38, PW * 0.56,
+            PW * 0.70, PW * 0.82,
+            PW - 2.8*inch]
+    c.setStrokeColor(HexColor('#2a4a6a'))
+    c.setLineWidth(1.0)
+    for x in cols[1:]:
+        c.line(x, 0, x, TB_H)
 
-    def _compliance_page(self, c: rl_canvas.Canvas) -> None:
-        W, H = PAGE_W, PAGE_H
-        self._page_frame(c, "G0.1", "Code Compliance Report", 3)
+    # ── Col 1: Practice + Project ──
+    x0 = 8
+    c.setFillColor(HexColor('#8ab4d4'))
+    c.setFont('Helvetica', 6.5)
+    c.drawString(x0, TB_H - 14, 'ARCHITECTURAL AI PLATFORM  ·  ' + _yr())
+    c.setFont('Helvetica-Bold', 12)
+    c.setFillColor(C_WHT)
+    pname = job.get('project_name', 'Project')
+    c.drawString(x0, TB_H * 0.60, pname[:38])
+    c.setFont('Helvetica', 8)
+    c.setFillColor(C_TSUB)
+    jur = job.get('jurisdiction_preset', job.get('jurisdiction',''))
+    c.drawString(x0, TB_H * 0.42, jur)
+    c.drawString(x0, TB_H * 0.25, job.get('primary_code','IBC 2023') + '  ·  ' + job.get('building_type','Commercial'))
 
-        y = H - 1.6 * inch
-        comp = self.report
+    # ── Col 2: Drawing title + scale ──
+    x0 = cols[1] + 8
+    c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
+    c.drawString(x0, TB_H - 14, 'DRAWING TITLE')
+    c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 11)
+    c.drawString(x0, TB_H * 0.60, sheet_title[:32])
+    c.setFont('Helvetica', 8); c.setFillColor(C_TSUB)
+    c.drawString(x0, TB_H * 0.40, 'SCALE:  ' + scale_str)
+    c.drawString(x0, TB_H * 0.23, 'DATE:   ' + _now())
 
-        # Summary banner
-        is_ok  = comp.get("is_compliant", True)
-        bc     = comp.get("blocking_count", 0)
-        wc     = comp.get("warning_count", 0)
-        banner_color = BRAND_GREEN if is_ok else BRAND_ERROR
-        c.setFillColor(banner_color)
-        c.roundRect(0.5*inch, y-0.05*inch, W-1.0*inch, 0.45*inch, 6, fill=1, stroke=0)
-        c.setFillColor(white)
-        c.setFont("Helvetica-Bold", 13)
-        status = "SPECIFICATION IS COMPLIANT" if is_ok else "COMPLIANCE FAILURES DETECTED"
-        c.drawCentredString(W/2, y+0.1*inch, status)
-        y -= 0.7 * inch
+    # ── Col 3: Building info ──
+    x0 = cols[2] + 8
+    c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
+    r = job.get('compliance_report', {})
+    items = [
+        ('OCCUPANCY', job.get('occupancy_group','B')),
+        ('CONSTRUCTION', (job.get('construction_type','') or '')[:14]),
+        ('SUPPRESSION', 'Sprinklered' if job.get('sprinklered') else 'Non-Spr.'),
+    ]
+    for i, (lbl, val) in enumerate(items):
+        y = TB_H * 0.78 - i * (TB_H * 0.27)
+        c.drawString(x0, y, lbl)
+        c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 8)
+        c.drawString(x0, y - 12, val)
+        c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
 
-        # Count badges
-        for label, val, col in [
-            ("BLOCKING ERRORS", bc, BRAND_ERROR),
-            ("WARNINGS",        wc, BRAND_WARN),
-            ("RULES CHECKED",   10, BRAND_BLUE),
-        ]:
-            c.setFillColor(BRAND_SURF)
-            c.roundRect(0.5*inch, y-0.35*inch, 2.0*inch, 0.6*inch, 6, fill=1, stroke=0)
-            c.setFillColor(col)
-            c.setFont("Helvetica-Bold", 20)
-            c.drawCentredString(1.5*inch, y-0.1*inch, str(val))
-            c.setFillColor(BRAND_MID)
-            c.setFont("Helvetica", 7)
-            c.drawCentredString(1.5*inch, y-0.28*inch, label)
-            # shift right
-            c.translate(2.2*inch, 0)
+    # ── Col 4: Compliance ──
+    x0 = cols[3] + 8
+    compliant = r.get('is_compliant', True)
+    c.setFillColor(C_GRN if compliant else C_RED)
+    c.setFont('Helvetica-Bold', 9)
+    c.drawString(x0, TB_H * 0.68, '✓ COMPLIANT' if compliant else '✗ NON-COMPLIANT')
+    c.setFont('Helvetica', 7.5); c.setFillColor(C_TSUB)
+    c.drawString(x0, TB_H * 0.48, f"Errors:   {r.get('blocking_count',0)}")
+    c.drawString(x0, TB_H * 0.33, f"Warnings: {r.get('warning_count',0)}")
+    c.drawString(x0, TB_H * 0.18, 'IBC RULE CHECK')
 
-        c.translate(-6.6*inch, 0)   # reset
-        y -= 0.85 * inch
+    # ── Col 5: Revisions ──
+    x0 = cols[4] + 8
+    c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
+    c.drawString(x0, TB_H - 14, 'REV  DATE         DESCRIPTION')
+    c.setFillColor(C_WHT); c.setFont('Helvetica', 7.5)
+    c.drawString(x0, TB_H * 0.60, f'01   {_now()}   Issued for Permit')
 
-        # Findings
-        findings = comp.get("findings", [])
-        if not findings:
-            c.setFillColor(BRAND_GREEN)
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(0.6*inch, y, "✓  No findings – specification fully compliant with selected code.")
-        else:
-            for f in findings:
-                sev = f.get("severity","INFO")
-                col = {"CRITICAL":BRAND_ERROR,"ERROR":BRAND_ERROR,
-                       "WARNING":BRAND_WARN,"INFO":BRAND_BLUE}.get(sev, BRAND_BLUE)
-                # Severity pill
-                c.setFillColor(col)
-                c.roundRect(0.5*inch, y-0.04*inch, 0.75*inch, 0.2*inch, 3, fill=1, stroke=0)
-                c.setFillColor(white)
-                c.setFont("Helvetica-Bold", 7)
-                c.drawCentredString(0.875*inch, y+0.02*inch, sev)
-                # Rule id
-                c.setFillColor(BRAND_MID)
-                c.setFont("Helvetica", 7.5)
-                c.drawString(1.35*inch, y+0.02*inch, f.get("rule_id",""))
-                # Section
-                c.setFillColor(BRAND_LIGHT)
-                c.setFont("Helvetica-Bold", 8)
-                c.drawString(0.5*inch, y - 0.18*inch, f.get("code_section",""))
-                # Description
-                desc = f.get("description","")[:110]
-                c.setFillColor(BRAND_LIGHT)
-                c.setFont("Helvetica", 8)
-                c.drawString(0.5*inch, y - 0.33*inch, desc)
-                # Recommendation
-                rec = f.get("recommendation","")
-                if rec:
-                    c.setFillColor(BRAND_MID)
-                    c.setFont("Helvetica-Oblique", 7.5)
-                    c.drawString(0.5*inch, y - 0.46*inch, f"→ {rec[:110]}")
+    # ── Col 6: Sheet number ──
+    x0 = cols[5]
+    sw  = PW - x0
+    c.setFillColor(HexColor('#0a1f35'))
+    c.rect(x0, 0, sw, TB_H, fill=1, stroke=0)
+    c.setFillColor(C_TSUB); c.setFont('Helvetica', 7)
+    c.drawCentredString(x0 + sw/2, TB_H - 14, 'SHEET NUMBER')
+    c.setFillColor(C_TACC); c.setFont('Helvetica-Bold', 32)
+    c.drawCentredString(x0 + sw/2, TB_H * 0.38, sheet_num)
+    c.setFont('Helvetica', 8); c.setFillColor(C_TSUB)
+    c.drawCentredString(x0 + sw/2, TB_H * 0.17, f'of {total}')
 
-                y -= 0.65 * inch
-                if y < 1.2 * inch: break
 
-        c.showPage()
+def _border(c: rl_canvas.Canvas):
+    """Sheet border and binding strip."""
+    c.setStrokeColor(C_BLK); c.setLineWidth(2.5)
+    c.rect(BDR_L, TB_H, DRAW_W, DRAW_H, fill=0, stroke=1)
+    c.setLineWidth(0.5)
+    c.rect(0.25*inch, 0.25*inch, PW - 0.5*inch, PH - 0.5*inch, fill=0, stroke=1)
+    # Binding
+    c.setLineWidth(4.0)
+    c.line(BDR_L, 0, BDR_L, PH)
 
-    def _sheet_page(self, c: rl_canvas.Canvas, drw: Dict, page_num: int) -> None:
-        W, H = PAGE_W, PAGE_H
-        self._page_frame(c, drw.get("sheet_number","X0"), drw.get("title","Sheet"), page_num + 3)
 
-        y = H - 1.65 * inch
-        col_w = (W - 1.0 * inch) / 2
+def _north_arrow(c, cx, cy, r=20):
+    c.setFillColor(C_DIM); c.setStrokeColor(C_DIM); c.setLineWidth(1.0)
+    c.circle(cx, cy, r, fill=0, stroke=1)
+    p = c.beginPath()
+    p.moveTo(cx, cy+r); p.lineTo(cx-7, cy-10)
+    p.lineTo(cx, cy-5); p.lineTo(cx+7, cy-10); p.close()
+    c.drawPath(p, fill=1, stroke=0)
+    c.setFont('Helvetica-Bold', 12); c.setFillColor(C_DIM)
+    c.drawCentredString(cx, cy + r + 7, 'N')
 
-        # Left column – key notes
-        c.setFillColor(BRAND_SURF)
-        c.rect(0.5*inch, y-0.02*inch, col_w - 0.1*inch, 0.25*inch, fill=1, stroke=0)
-        c.setFillColor(BRAND_BLUE)
-        c.setFont("Helvetica-Bold", 8)
-        c.drawString(0.6*inch, y+0.06*inch, "KEY NOTES")
-        y -= 0.32*inch
 
-        notes = drw.get("key_notes") or []
-        for n in notes[:8]:
-            c.setFillColor(BRAND_BLUE)
-            c.setFont("Helvetica-Bold", 8)
-            c.drawString(0.55*inch, y, "•")
-            c.setFillColor(BRAND_LIGHT)
-            c.setFont("Helvetica", 8)
-            # Wrap long notes
-            words = str(n); line_max = 68
-            if len(words) > line_max:
-                c.drawString(0.7*inch, y, words[:line_max])
-                y -= 0.17*inch
-                c.drawString(0.7*inch, y, "  " + words[line_max:line_max*2])
+def _scale_bar(c, x, y, scale):
+    """Draw 0-50 ft scale bar. scale = pts per foot."""
+    u = 10 * scale
+    c.setStrokeColor(C_DIM); c.setLineWidth(0.5)
+    for i in range(5):
+        c.setFillColor(C_DIM if i % 2 == 0 else C_WHT)
+        c.rect(x + i*u, y, u, 7, fill=1, stroke=1)
+    c.setFont('Helvetica', 7.5); c.setFillColor(C_DIM)
+    c.drawString(x - 3, y - 11, "0")
+    c.drawCentredString(x + 2.5*u, y - 11, "25'")
+    c.drawRightString(x + 5*u + 3, y - 11, "50'")
+    c.setFont('Helvetica-Oblique', 7.5)
+    c.drawCentredString(x + 2.5*u, y - 21, "SCALE: 1/8\" = 1'-0\"")
+
+
+def _dim_line(c, x1, y1, x2, y2, label, offset=18, horiz=True):
+    """Draw a dimension string with tick marks."""
+    c.setStrokeColor(C_DIM); c.setFillColor(C_DIM); c.setLineWidth(0.6)
+    if horiz:
+        c.line(x1, y1-offset, x2, y1-offset)
+        c.line(x1, y1, x1, y1-offset-4)
+        c.line(x2, y1, x2, y1-offset-4)
+        mx = (x1+x2)/2
+        c.setFont('Helvetica', 7.5)
+        c.drawCentredString(mx, y1-offset-12, label)
+    else:
+        c.line(x1-offset, y1, x1-offset, y2)
+        c.line(x1, y1, x1-offset-4, y1)
+        c.line(x2, y2, x2-offset-4, y2)   # note: x2 unused in vert
+        my = (y1+y2)/2
+        c.saveState(); c.translate(x1-offset-14, my)
+        c.rotate(90); c.setFont('Helvetica', 7.5)
+        c.drawCentredString(0, 0, label); c.restoreState()
+
+
+def _room_label(c, cx, cy, name, sqft, num=None):
+    """Draw room label with number circle, name, area."""
+    # Circle number
+    if num is not None:
+        c.setFillColor(C_WHT); c.setStrokeColor(C_NOTE); c.setLineWidth(0.7)
+        c.circle(cx, cy+10, 8, fill=1, stroke=1)
+        c.setFillColor(C_NOTE); c.setFont('Helvetica-Bold', 7)
+        c.drawCentredString(cx, cy+7, str(num))
+    # Name
+    c.setFillColor(C_NOTE)
+    sz = max(6.5, min(9.5, 160 / max(len(name),1)))
+    c.setFont('Helvetica-Bold', sz)
+    c.drawCentredString(cx, cy - 2, name)
+    # Area
+    c.setFont('Helvetica', 7); c.setFillColor(HexColor('#555555'))
+    c.drawCentredString(cx, cy - 13, f'{sqft:.0f} SF')
+
+
+def _draw_wall_rect(c, x, y, w, h, filled=True):
+    """Draw a filled wall rectangle."""
+    c.setFillColor(C_WALL if filled else C_WINT)
+    c.setStrokeColor(C_BLK); c.setLineWidth(0.3)
+    c.rect(x, y, w, h, fill=1, stroke=1)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+#  Sheet A1.0 – Floor Plan
+# ─────────────────────────────────────────────────────────────────────────
+
+def _sheet_floor_plan(c, job, rooms, placed, bw, bd, scale,
+                      sheet_num, total, level=1):
+    """Draw a complete dimensioned floor plan sheet."""
+
+    def X(ft): return DRAW_X0 + ox + ft * scale
+    def Y(ft): return DRAW_Y0 + oy + ft * scale
+
+    # Centre drawing in available space
+    ox = (DRAW_W - bw * scale) / 2
+    oy = (DRAW_H - bd * scale) / 2
+    EW = EXT_WALL_T * scale   # exterior wall pts
+    IW = INT_WALL_T * scale
+
+    # ── Grid ──────────────────────────────────────────────────────────
+    c.setStrokeColor(C_GRID); c.setLineWidth(0.25)
+    for gx in range(0, int(bw)+1, 10):
+        c.line(X(gx), DRAW_Y0, X(gx), DRAW_Y1)
+    for gy in range(0, int(bd)+1, 10):
+        c.line(DRAW_X0, Y(gy), DRAW_X1, Y(gy))
+
+    # ── Room fills ────────────────────────────────────────────────────
+    for r in placed:
+        rx, ry = r.get('_x',0), r.get('_y',0)
+        rw = r.get('_w', r.get('width_ft',12))
+        rd = r.get('_d', r.get('depth_ft',14))
+        zone = r.get('zone','perimeter')
+        fill = C_CORE if zone=='core' else C_CIRC if zone=='circulation' else C_ROOM
+        c.setFillColor(fill); c.setStrokeColor(C_GRID); c.setLineWidth(0.2)
+        c.rect(X(rx), Y(ry), rw*scale, rd*scale, fill=1, stroke=1)
+
+    # ── Interior walls (draw as filled strips between rooms) ──────────
+    drawn_walls = set()
+    def wall_key(a, b): return (round(min(a,b),1), round(max(a,b),1))
+
+    for r in placed:
+        rx, ry = r.get('_x',0), r.get('_y',0)
+        rw = r.get('_w', r.get('width_ft',12))
+        rd = r.get('_d', r.get('depth_ft',14))
+        # Four walls
+        for (ax,ay,bx,by) in [(rx,ry,rx+rw,ry),(rx+rw,ry,rx+rw,ry+rd),
+                               (rx,ry+rd,rx+rw,ry+rd),(rx,ry,rx,ry+rd)]:
+            k = wall_key(ax*1000+ay, bx*1000+by)
+            if k in drawn_walls: continue
+            drawn_walls.add(k)
+            is_horiz = abs(ay-by) < 0.1
+            if is_horiz:
+                c.setFillColor(C_WINT); c.setStrokeColor(C_BLK); c.setLineWidth(0.2)
+                c.rect(X(min(ax,bx)), Y(ay)-IW/2, abs(bx-ax)*scale, IW, fill=1, stroke=0)
             else:
-                c.drawString(0.7*inch, y, words)
-            y -= 0.22*inch
-            if y < 1.4 * inch: break
+                c.setFillColor(C_WINT); c.setStrokeColor(C_BLK); c.setLineWidth(0.2)
+                c.rect(X(ax)-IW/2, Y(min(ay,by)), IW, abs(by-ay)*scale, fill=1, stroke=0)
 
-        # Right column – code sections + ADA
-        rx = 0.5*inch + col_w + 0.1*inch
-        ry = H - 1.65*inch
+    # ── Exterior walls (solid filled) ─────────────────────────────────
+    MAR = 1.5
+    # Bottom
+    c.setFillColor(C_WALL)
+    c.rect(X(MAR-EXT_WALL_T), Y(MAR-EXT_WALL_T),
+           (bw-2*(MAR-EXT_WALL_T))*scale, EW, fill=1, stroke=0)
+    # Top
+    c.rect(X(MAR-EXT_WALL_T), Y(bd-MAR),
+           (bw-2*(MAR-EXT_WALL_T))*scale, EW, fill=1, stroke=0)
+    # Left
+    c.rect(X(MAR-EXT_WALL_T), Y(MAR-EXT_WALL_T),
+           EW, (bd-2*(MAR-EXT_WALL_T))*scale, fill=1, stroke=0)
+    # Right
+    c.rect(X(bw-MAR), Y(MAR-EXT_WALL_T),
+           EW, (bd-2*(MAR-EXT_WALL_T))*scale, fill=1, stroke=0)
+    # Outline
+    c.setStrokeColor(C_WALL); c.setLineWidth(2.5); c.setFillColor(HexColor('#00000000'))
+    c.rect(X(MAR), Y(MAR), (bw-2*MAR)*scale, (bd-2*MAR)*scale, fill=0, stroke=1)
 
-        c.setFillColor(BRAND_SURF)
-        c.rect(rx, ry-0.02*inch, col_w - 0.1*inch, 0.25*inch, fill=1, stroke=0)
-        c.setFillColor(BRAND_BLUE)
-        c.setFont("Helvetica-Bold", 8)
-        c.drawString(rx + 0.1*inch, ry+0.06*inch, "CODE REFERENCES")
-        ry -= 0.32*inch
+    # ── Doors ─────────────────────────────────────────────────────────
+    DOOR_FT = 3.0
+    for r in placed:
+        if 'corridor' in r.get('name','').lower(): continue
+        rx, ry = r.get('_x',0), r.get('_y',0)
+        rw = r.get('_w', r.get('width_ft',12))
+        rd = r.get('_d', r.get('depth_ft',14))
+        # Door centred in bottom wall
+        door_x_ft = rx + rw/2 - DOOR_FT/2
+        door_y_ft = ry + rd
+        dw = DOOR_FT * scale
+        # White gap in wall
+        c.setFillColor(C_ROOM); c.setStrokeColor(C_ROOM); c.setLineWidth(0)
+        c.rect(X(door_x_ft), Y(door_y_ft)-IW, dw, IW*2+1, fill=1, stroke=0)
+        # Door panel line
+        c.setStrokeColor(C_DOOR); c.setLineWidth(1.2)
+        c.line(X(door_x_ft), Y(door_y_ft), X(door_x_ft+DOOR_FT), Y(door_y_ft))
+        # Swing arc (quarter circle)
+        c.setLineWidth(0.6)
+        c.arc(X(door_x_ft), Y(door_y_ft)-dw,
+              X(door_x_ft)+dw, Y(door_y_ft), 0, 90)
 
-        for sec in (drw.get("code_sections") or [])[:8]:
-            c.setFillColor(BRAND_BLUE)
-            c.roundRect(rx, ry-0.03*inch, col_w-0.2*inch, 0.2*inch, 3, fill=1, stroke=0)
-            c.setFillColor(white)
-            c.setFont("Helvetica-Bold", 7.5)
-            c.drawString(rx+0.08*inch, ry+0.02*inch, str(sec)[:55])
-            ry -= 0.27*inch
+    # ── Windows ───────────────────────────────────────────────────────
+    WIN_FT = 4.0
+    for r in placed:
+        if r.get('zone') == 'core': continue
+        rx, ry = r.get('_x',0), r.get('_y',0)
+        rw = r.get('_w', r.get('width_ft',12))
+        rd = r.get('_d', r.get('depth_ft',14))
+        on_front = ry <= MAR + 0.5
+        on_back  = ry + rd >= bd - MAR - 0.5
+        if not (on_front or on_back): continue
+        wy_ft = ry if on_front else ry + rd
+        for offset_pct in [0.2, 0.6]:
+            wx_ft = rx + rw * offset_pct
+            if wx_ft + WIN_FT > rx + rw - 0.5: continue
+            wx1 = X(wx_ft); wx2 = X(wx_ft + WIN_FT)
+            wy  = Y(wy_ft)
+            # White out wall behind window
+            c.setFillColor(HexColor('#e8f4fc'))
+            c.rect(wx1, wy - EW*0.4, wx2-wx1, EW*0.8, fill=1, stroke=0)
+            # Window symbol (3 lines)
+            c.setStrokeColor(C_WIN); c.setLineWidth(1.2)
+            c.line(wx1, wy, wx2, wy)
+            c.setLineWidth(0.5)
+            c.line(wx1, wy-3, wx2, wy-3)
+            c.line(wx1, wy+3, wx2, wy+3)
 
-        # ADA Notes
-        ada = drw.get("ada_notes","")
-        if ada:
-            ry -= 0.1*inch
-            c.setFillColor(BRAND_SURF)
-            c.rect(rx, ry-0.02*inch, col_w-0.1*inch, 0.25*inch, fill=1, stroke=0)
-            c.setFillColor(BRAND_GREEN)
-            c.setFont("Helvetica-Bold", 8)
-            c.drawString(rx+0.1*inch, ry+0.06*inch, "ADA / ACCESSIBILITY")
-            ry -= 0.32*inch
-            c.setFillColor(BRAND_LIGHT)
-            c.setFont("Helvetica", 8)
-            for chunk in [ada[i:i+65] for i in range(0,min(len(ada),260),65)]:
-                c.drawString(rx+0.05*inch, ry, chunk)
-                ry -= 0.18*inch
+    # ── Room labels ───────────────────────────────────────────────────
+    for i, r in enumerate(placed):
+        rx, ry = r.get('_x',0), r.get('_y',0)
+        rw = r.get('_w', r.get('width_ft',12))
+        rd = r.get('_d', r.get('depth_ft',14))
+        cx = X(rx + rw/2); cy = Y(ry + rd/2)
+        sqft = r.get('sqft', round(rw*rd))
+        _room_label(c, cx, cy, r.get('name','Room'), sqft, i+100)
 
-        # Models used (if NIM)
-        models = drw.get("models_used") or {}
-        if models:
-            c.setFillColor(BRAND_MID)
-            c.setFont("Helvetica", 6.5)
-            mtext = "  |  ".join(f"{k}: {v}" for k,v in models.items() if v)
-            c.drawString(0.5*inch, 1.05*inch, f"AI Models: {mtext}")
+    # ── Overall dimensions ────────────────────────────────────────────
+    usable_w = bw - 2*MAR; usable_d = bd - 2*MAR
+    # Width dimension
+    _dim_line(c, X(MAR), Y(0), X(bw-MAR), Y(0),
+              f"{int(usable_w)}'-0\"", offset=28, horiz=True)
+    # Depth dimension (vertical)
+    _dim_line(c, X(0), Y(MAR), X(0), Y(bd-MAR),
+              f"{int(usable_d)}'-0\"", offset=30, horiz=False)
 
-        c.showPage()
+    # Bay dimensions (column spacing)
+    bays = sorted(set(round(r.get('_x',0),1) for r in placed if r.get('_x',0) > MAR))
+    prev_x = X(MAR)
+    for bay_x_ft in bays[:6]:
+        bx = X(bay_x_ft)
+        rroom = [r for r in placed if abs(r.get('_x',0)-bay_x_ft)<0.5]
+        if rroom:
+            rw = rroom[0].get('_w', 12)
+            ex = X(bay_x_ft + rw)
+            label = f"{int(rroom[0].get('_w',12))}'"
+            _dim_line(c, bx, Y(bd), ex, Y(bd), label, offset=18, horiz=True)
 
-    # ── Shared page frame ─────────────────────────────────────────────────
+    # ── Grid bubbles (column lines) ────────────────────────────────────
+    col_xs = [MAR + i * (usable_w/4) for i in range(5)]
+    for j, cxft in enumerate(col_xs):
+        cx2 = X(cxft); cy2 = Y(bd + 1.5)
+        c.setFillColor(C_WHT); c.setStrokeColor(C_DIM); c.setLineWidth(0.7)
+        c.circle(cx2, cy2, 9, fill=1, stroke=1)
+        c.setFillColor(C_DIM); c.setFont('Helvetica-Bold', 7.5)
+        c.drawCentredString(cx2, cy2-3, str(j+1))
+        c.setStrokeColor(C_GRID); c.setLineWidth(0.5)
+        c.setDash([4,4])
+        c.line(cx2, cy2-9, cx2, Y(0))
+        c.setDash([])
 
-    def _page_frame(self, c: rl_canvas.Canvas, sheet_no: str,
-                    title: str, page_num: int) -> None:
-        W, H = PAGE_W, PAGE_H
-        total = len(self.drawings) + 3
+    row_ys = [MAR + i * (usable_d/3) for i in range(4)]
+    for j, ryft in enumerate(row_ys):
+        cy2 = Y(ryft); cx2 = X(MAR - 2.2)
+        c.setFillColor(C_WHT); c.setStrokeColor(C_DIM); c.setLineWidth(0.7)
+        c.circle(cx2, cy2, 9, fill=1, stroke=1)
+        c.setFillColor(C_DIM); c.setFont('Helvetica-Bold', 7.5)
+        c.drawCentredString(cx2, cy2-3, chr(65+j))
+        c.setStrokeColor(C_GRID); c.setLineWidth(0.5)
+        c.setDash([4,4])
+        c.line(cx2+9, cy2, X(bw), cy2)
+        c.setDash([])
 
-        # Background
-        c.setFillColor(BRAND_DARK)
-        c.rect(0, 0, W, H, fill=1, stroke=0)
+    # ── Notes column (right side) ─────────────────────────────────────
+    NX = DRAW_X1 - 1.8*inch + 5
+    NY = DRAW_Y1 - 10
+    c.setFillColor(C_NOTE); c.setFont('Helvetica-Bold', 7.5)
+    c.drawString(NX, NY, 'GENERAL NOTES')
+    c.setStrokeColor(C_DIM); c.setLineWidth(0.5)
+    c.line(NX, NY-3, NX + 1.7*inch, NY-3)
+    notes = [
+        '1. All dimensions are to face of stud / face of',
+        '   concrete unless otherwise noted.',
+        '2. Verify all dimensions in field prior to',
+        '   construction. Notify architect of discrepancies.',
+        '3. All exterior walls to be 8" thick CMU or',
+        '   per structural drawings.',
+        '4. All interior walls to be 6" metal stud at',
+        '   16" O.C. unless otherwise noted.',
+        '5. All doors to be provided with ADA-compliant',
+        '   hardware. Min 32" clear opening width.',
+        '6. Provide accessibility features per',
+        '   IBC Chapter 11 and ICC A117.1.',
+        '7. All work to comply with applicable codes.',
+    ]
+    c.setFont('Helvetica', 6.5); c.setFillColor(HexColor('#333333'))
+    for i, note in enumerate(notes):
+        c.drawString(NX, NY - 16 - i*10, note)
 
-        # Top bar
-        c.setFillColor(BRAND_SURF)
-        c.rect(0, H - 1.1*inch, W, 1.1*inch, fill=1, stroke=0)
-        c.setStrokeColor(BRAND_BLUE)
-        c.setLineWidth(1.5)
-        c.line(0, H - 1.1*inch, W, H - 1.1*inch)
+    # Code data box
+    by = NY - 160
+    c.setFillColor(HexColor('#eef2f8'))
+    c.rect(NX-3, by-90, 1.75*inch, 100, fill=1, stroke=0)
+    c.setStrokeColor(C_DIM); c.setLineWidth(0.5)
+    c.rect(NX-3, by-90, 1.75*inch, 100, fill=0, stroke=1)
+    c.setFont('Helvetica-Bold', 7.5); c.setFillColor(C_DIM)
+    c.drawString(NX, by, 'CODE DATA')
+    c.setFont('Helvetica', 7); c.setFillColor(C_NOTE)
+    r = job.get('compliance_report', {})
+    cdata = [
+        ('Occ. Group', job.get('occupancy_group','B')),
+        ('Construction', (job.get('construction_type','') or '')[:12]),
+        ('Primary Code', job.get('primary_code','IBC 2023')),
+        ('Sprinklers', 'Yes' if job.get('sprinklered') else 'No'),
+        ('Seismic SDC', job.get('jurisdiction_details',{}).get('seismic_design_category','B')),
+    ]
+    for i, (k, v) in enumerate(cdata):
+        c.drawString(NX, by-18-i*13, k+':  '+str(v))
 
-        # Sheet number (large, left)
-        c.setFillColor(BRAND_BLUE)
-        c.setFont("Helvetica-Bold", 22)
-        c.drawString(0.4*inch, H - 0.82*inch, sheet_no)
+    # ── North arrow + scale bar ────────────────────────────────────────
+    _north_arrow(c, DRAW_X1 - 2.4*inch, DRAW_Y0 + 60)
+    _scale_bar(c, DRAW_X1 - 3.5*inch, DRAW_Y0 + 22, scale)
 
-        # Title
-        c.setFillColor(BRAND_LIGHT)
-        c.setFont("Helvetica-Bold", 13)
-        c.drawString(1.8*inch, H - 0.65*inch, title.upper())
-
-        # Project name
-        c.setFillColor(BRAND_MID)
-        c.setFont("Helvetica", 8.5)
-        c.drawString(1.8*inch, H - 0.9*inch, self.project)
-
-        # Right side: page number + date
-        c.setFillColor(BRAND_MID)
-        c.setFont("Helvetica", 8)
-        c.drawRightString(W - 0.4*inch, H - 0.65*inch, f"Page {page_num} of {total}")
-        c.drawRightString(W - 0.4*inch, H - 0.85*inch, self.now)
-
-        # Bottom border
-        c.setFillColor(BRAND_SURF)
-        c.rect(0, 0, W, 0.9*inch, fill=1, stroke=0)
-        c.setStrokeColor(BRAND_SURF)
-        c.setLineWidth(1)
-        c.line(0, 0.9*inch, W, 0.9*inch)
-
-        # Footer text
-        c.setFillColor(BRAND_MID)
-        c.setFont("Helvetica", 6.5)
-        c.drawString(0.4*inch, 0.35*inch,
-            "FOR REVIEW ONLY — VERIFY ALL DIMENSIONS IN FIELD — NOT FOR CONSTRUCTION WITHOUT LICENSED ARCHITECT STAMP")
-        c.drawRightString(W - 0.4*inch, 0.35*inch,
-            "Architectural AI Platform  |  IBC 2023")
+    # Level tag
+    c.setFillColor(C_TBKG); c.setStrokeColor(C_DIM); c.setLineWidth(1)
+    c.roundRect(DRAW_X0+10, DRAW_Y1-30, 80, 22, 4, fill=1, stroke=1)
+    c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 9)
+    c.drawCentredString(DRAW_X0+50, DRAW_Y1-22, f'LEVEL {level}')
 
 
-# ---------------------------------------------------------------------------
-# DXF Export
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────
+#  Sheet A3.0 – Exterior Elevations
+# ─────────────────────────────────────────────────────────────────────────
 
-class DXFExporter:
-    """
-    Generates per-sheet DXF files (AutoCAD R2010 / DXF version AC1024).
-    Each DrawingSet gets its own DXF with:
-      • AIA-standard named layers
-      • ANSI D title block (34" × 22" = 816 × 528 drawing units at 1:1)
-      • Architectural content drawn to scale
-      • Text annotation with code references
-    """
+def _sheet_elevations(c, job, bw, bd):
+    """Four schematic exterior elevations."""
+    floors = int(job.get('num_stories') or 1)
+    flr_h  = 12.0   # ft per floor
+    bldg_h = floors * flr_h
+    roof_h = 3.0
 
-    SHEET_W = 34.0   # inches
-    SHEET_H = 22.0
-    MARGIN  = 0.5
-    TB_H    = 3.0    # title block height (bottom strip)
-    TB_LOGO_W = 6.0
+    # Two elevations per row, 2 rows
+    layouts = [
+        (DRAW_X0 + 0.5*inch, DRAW_Y0 + DRAW_H*0.52, bw, 'SOUTH ELEVATION'),
+        (DRAW_X0 + DRAW_W*0.5 + 0.3*inch, DRAW_Y0 + DRAW_H*0.52, bw, 'NORTH ELEVATION'),
+        (DRAW_X0 + 0.5*inch, DRAW_Y0 + 0.4*inch, bd, 'EAST ELEVATION'),
+        (DRAW_X0 + DRAW_W*0.5 + 0.3*inch, DRAW_Y0 + 0.4*inch, bd, 'WEST ELEVATION'),
+    ]
+    avail_w = DRAW_W * 0.45
+    avail_h = DRAW_H * 0.42
 
-    def __init__(self, job: Dict[str, Any]) -> None:
-        self.job      = job
-        self.project  = job.get("project_name", "Project")
-        self.drawings = job.get("drawings", [])
-        self.report   = job.get("compliance_report") or {}
-        self.now      = datetime.utcnow().strftime("%Y-%m-%d")
-
-    # ── Public ────────────────────────────────────────────────────────────
-
-    def generate_sheet(self, drw: Dict) -> bytes:
-        """Return a single DXF file as bytes for one drawing sheet."""
-        doc = ezdxf.new("R2010")
-        doc.units = ezdxf.units.IN
-        self._setup_layers(doc)
-        self._setup_linetypes(doc)
-        msp = doc.modelspace()
-        self._draw_border(msp)
-        self._draw_title_block(msp, drw)
-        self._draw_content(msp, drw)
-        buf = io.StringIO()
-        doc.write(buf)
-        return buf.getvalue().encode("utf-8")
-
-    def generate_all_sheets(self) -> Dict[str, bytes]:
-        """Return {filename: bytes} for every drawing in the job."""
-        result = {}
-        for drw in self.drawings:
-            num   = drw.get("sheet_number","X0").replace("/","_").replace(" ","_")
-            fname = f"{num}_{drw.get('sheet_type','Sheet').replace(' ','_')}.dxf"
-            result[fname] = self.generate_sheet(drw)
-        return result
-
-    # ── DXF setup ─────────────────────────────────────────────────────────
-
-    def _setup_layers(self, doc) -> None:
-        for key, (name, color, lw) in LAYERS.items():
-            try:
-                layer = doc.layers.add(name)
-                layer.color = color
-                layer.lineweight = lw
-            except Exception:
-                pass
-
-    def _setup_linetypes(self, doc) -> None:
-        try:
-            doc.linetypes.add("HIDDEN",  pattern=[0.25, -0.125])
-            doc.linetypes.add("CENTER",  pattern=[1.0, -0.25, 0.0, -0.25])
-            doc.linetypes.add("DASHDOT", pattern=[0.5, -0.25, 0.0, -0.25])
-        except Exception:
-            pass
-
-    # ── Border & title block ──────────────────────────────────────────────
-
-    def _draw_border(self, msp) -> None:
-        W, H = self.SHEET_W, self.SHEET_H
-        M    = self.MARGIN
-        ln   = LAYERS["BORDER"][0]
-
-        # Outer sheet boundary
-        msp.add_lwpolyline(
-            [(0,0),(W,0),(W,H),(0,H),(0,0)],
-            dxfattribs={"layer": ln, "lineweight": 70, "closed": True}
-        )
-        # Inner drawing area border
-        msp.add_lwpolyline(
-            [(M, M+self.TB_H), (W-M, M+self.TB_H),
-             (W-M, H-M), (M, H-M), (M, M+self.TB_H)],
-            dxfattribs={"layer": ln, "lineweight": 50, "closed": True}
-        )
-        # Grid reference marks every 2" along top/bottom
-        grid_ln = LAYERS["GRID"][0]
-        for x in range(2, int(W), 2):
-            msp.add_line((x, H-M), (x, H-M+0.15),
-                         dxfattribs={"layer": grid_ln, "lineweight": 13})
-            msp.add_line((x, M+self.TB_H), (x, M+self.TB_H-0.15),
-                         dxfattribs={"layer": grid_ln, "lineweight": 13})
-        for y in range(int(M+self.TB_H)+2, int(H-M), 2):
-            msp.add_line((M, y), (M-0.15, y),
-                         dxfattribs={"layer": grid_ln, "lineweight": 13})
-
-    def _draw_title_block(self, msp, drw: Dict) -> None:
-        tl  = LAYERS["TITLEBLK"][0]
-        txt = LAYERS["TEXT"][0]
-        W, H, M = self.SHEET_W, self.SHEET_H, self.MARGIN
-        TB  = self.TB_H
-        LW  = self.TB_LOGO_W
-
-        # Title block outer box
-        msp.add_lwpolyline(
-            [(M, M), (W-M, M), (W-M, M+TB), (M, M+TB), (M, M)],
-            dxfattribs={"layer": tl, "lineweight": 50, "closed": True}
-        )
-
-        # ── Left logo / firm cell ──────────────────────────────────────
-        msp.add_line((M+LW, M), (M+LW, M+TB), dxfattribs={"layer":tl,"lineweight":50})
-        msp.add_text("ARCHITECTURAL AI PLATFORM",
-            dxfattribs={"layer":txt,"height":0.18,"style":"STANDARD"}
-        ).set_placement((M+0.15, M+TB-0.35), align=TextEntityAlignment.LEFT)
-        msp.add_text("IBC 2023 Compliant",
-            dxfattribs={"layer":txt,"height":0.12,"style":"STANDARD"}
-        ).set_placement((M+0.15, M+TB-0.58), align=TextEntityAlignment.LEFT)
-
-        # ── Project info cell ──────────────────────────────────────────
-        info_x = M + LW + 0.15
-        msp.add_text("PROJECT",
-            dxfattribs={"layer":txt,"height":0.09,"style":"STANDARD"}
-        ).set_placement((info_x, M+TB-0.25), align=TextEntityAlignment.LEFT)
-        msp.add_text(self.project[:60],
-            dxfattribs={"layer":txt,"height":0.15,"style":"STANDARD"}
-        ).set_placement((info_x, M+TB-0.45), align=TextEntityAlignment.LEFT)
-
-        msp.add_text("SHEET TITLE",
-            dxfattribs={"layer":txt,"height":0.09,"style":"STANDARD"}
-        ).set_placement((info_x, M+TB-0.75), align=TextEntityAlignment.LEFT)
-        msp.add_text(drw.get("title","Untitled")[:60],
-            dxfattribs={"layer":txt,"height":0.13,"style":"STANDARD"}
-        ).set_placement((info_x, M+TB-0.95), align=TextEntityAlignment.LEFT)
-
-        # ── Right meta cell ────────────────────────────────────────────
-        right_x = W - M - 4.5
-        msp.add_line((right_x, M), (right_x, M+TB), dxfattribs={"layer":tl,"lineweight":35})
-
-        meta = [
-            ("SHEET NO.",  drw.get("sheet_number","X0.0")),
-            ("SCALE",      drw.get("scale","AS NOTED")),
-            ("DATE",       self.now),
-            ("DISCIPLINE", drw.get("discipline","Architecture")),
-        ]
-        my = M + TB - 0.35
-        for label, val in meta:
-            msp.add_text(label,
-                dxfattribs={"layer":txt,"height":0.08}
-            ).set_placement((right_x+0.1, my), align=TextEntityAlignment.LEFT)
-            msp.add_text(str(val),
-                dxfattribs={"layer":txt,"height":0.12}
-            ).set_placement((right_x+0.1, my-0.17), align=TextEntityAlignment.LEFT)
-            msp.add_line((right_x, my-0.25), (W-M, my-0.25),
-                         dxfattribs={"layer":tl,"lineweight":18})
-            my -= 0.62
-
-        # Compliance stamp
-        comp_ok = self.report.get("is_compliant", True)
-        stamp   = "IBC COMPLIANT" if comp_ok else "COMPLIANCE REVIEW REQUIRED"
-        msp.add_text(stamp,
-            dxfattribs={"layer":txt,"height":0.11}
-        ).set_placement(((right_x + W-M)/2, M+0.22), align=TextEntityAlignment.CENTER)
-
-    # ── Drawing content ───────────────────────────────────────────────────
-
-    def _draw_content(self, msp, drw: Dict) -> None:
-        """Dispatch to per-sheet-type content generator."""
-        st = drw.get("sheet_type","").lower()
-        dispatch = {
-            "floor plan":          self._content_floor_plan,
-            "site plan":           self._content_site_plan,
-            "exterior elevations": self._content_elevations,
-            "building sections":   self._content_sections,
-            "structural drawings": self._content_structural,
-            "fire & life safety":  self._content_fire,
-            "accessibility plan":  self._content_accessibility,
-            "mep drawings":        self._content_mep,
-        }
-        fn = None
-        for key, func in dispatch.items():
-            if key in st:
-                fn = func
-                break
-        if fn:
-            fn(msp, drw)
-        else:
-            self._content_generic(msp, drw)
-
-    # ── Content generators ────────────────────────────────────────────────
-
-    def _content_floor_plan(self, msp, drw: Dict) -> None:
-        """Schematic floor plan with room grid, walls, doors, windows, dims."""
-        W, H = self.SHEET_W, self.SHEET_H
-        M, TB = self.MARGIN, self.TB_H
-        # Drawing area
-        DX = M + 0.75;  DW = W - M - 1.5
-        DY = M + TB + 0.5; DH = H - M - TB - 1.0
-        # Scale: fit into drawing area
-        BLDG_W, BLDG_D = 120.0, 80.0   # ft (schematic)
-        sx = DW / BLDG_W
-        sy = DH / BLDG_D
-
-        wall = LAYERS["WALL"][0]
-        wint = LAYERS["WALL_INT"][0]
-        door = LAYERS["DOOR"][0]
-        win  = LAYERS["WINDOW"][0]
-        dim  = LAYERS["DIM"][0]
-        txt  = LAYERS["TEXT"][0]
-
-        def W2D(x, y): return (DX + x*sx, DY + y*sy)
-
-        # Exterior walls (double-line: 8" = 0.67 ft thick)
-        thick = 0.67
-        perimeter = [
-            (0,0),(BLDG_W,0),(BLDG_W,BLDG_D),(0,BLDG_D),(0,0)
-        ]
-        pts_out = [W2D(x, y) for x,y in perimeter]
-        pts_in  = [W2D(x+(thick if x==0 else -thick if x==BLDG_W else 0),
-                       y+(thick if y==0 else -thick if y==BLDG_D else 0)) for x,y in perimeter]
-        msp.add_lwpolyline(pts_out, dxfattribs={"layer":wall,"lineweight":50,"closed":True})
-        msp.add_lwpolyline(pts_in,  dxfattribs={"layer":wall,"lineweight":50,"closed":True})
-
-        # Interior walls (4" = 0.33 ft)
-        int_walls = [
-            ((40,0),(40,60)), ((40,60),(0,60)),
-            ((80,0),(80,BLDG_D)), ((40,30),(80,30)),
-            ((0,30),(40,30)),
-        ]
-        for (x1,y1),(x2,y2) in int_walls:
-            p1, p2 = W2D(x1,y1), W2D(x2,y2)
-            msp.add_line(p1, p2, dxfattribs={"layer":wint,"lineweight":35})
-
-        # Doors (arcs representing swing)
-        doors_pos = [(38,0,True),(78,0,True),(38,28,False),(0,58,True)]
-        for dx,dy,horiz in doors_pos:
-            cx,cy = W2D(dx+3, dy+3 if not horiz else dy)
-            r = 3*sx
-            start_ang = 90 if horiz else 0
-            msp.add_arc(center=(cx, cy, 0), radius=r, start_angle=start_ang, end_angle=start_ang+90,
-                        dxfattribs={"layer":door,"lineweight":25})
-
-        # Windows (triple line on exterior)
-        windows = [(20,0,10,True),(60,0,10,True),(10,BLDG_D,15,True),
-                   (0,15,10,False),(BLDG_W,20,12,False)]
-        for wx,wy,wlen,horiz in windows:
-            p1 = W2D(wx, wy); p2 = W2D(wx+(wlen if horiz else 0), wy+(0 if horiz else wlen))
-            msp.add_line(p1, p2, dxfattribs={"layer":win,"lineweight":25})
-            off = 0.08*inch*sx
-            dx_off = 0 if horiz else off
-            dy_off = off if horiz else 0
-            p1o = (p1[0]+dx_off, p1[1]+dy_off)
-            p2o = (p2[0]+dx_off, p2[1]+dy_off)
-            msp.add_line(p1o, p2o, dxfattribs={"layer":win,"lineweight":18})
-
-        # Room labels
-        rooms = [
-            (5,32,"LOBBY"),(45,35,"OFFICE"),(45,5,"CONF ROOM"),
-            (85,35,"OPEN OFFICE"),(85,5,"STORAGE"),(2,2,"EXIT")
-        ]
-        for rx,ry,label in rooms:
-            pt = W2D(rx, ry)
-            msp.add_text(label, dxfattribs={"layer":txt,"height":0.14}
-            ).set_placement(pt, align=TextEntityAlignment.LEFT)
-
-        # Dimension strings
-        self._add_dim(msp, W2D(0,-5), W2D(BLDG_W,-5), f"{int(BLDG_W)}'-0\"", dim, txt)
-        self._add_dim(msp, W2D(-5,0), W2D(-5,BLDG_D), f"{int(BLDG_D)}'-0\"", dim, txt, vertical=True)
-
-        # North arrow
-        self._north_arrow(msp, W2D(BLDG_W+5, BLDG_D+5))
-
-        # Scale bar
-        self._scale_bar(msp, W2D(0, BLDG_D+5), sx, "1/8\" = 1'-0\"", txt)
-
-        # Sheet title in drawing area
-        msp.add_text("GROUND FLOOR PLAN",
-            dxfattribs={"layer":txt,"height":0.22}
-        ).set_placement(W2D(BLDG_W/2, BLDG_D+8), align=TextEntityAlignment.CENTER)
-
-        self._add_code_notes(msp, drw, DX+DW+0.1, DY+DH)
-
-    def _content_site_plan(self, msp, drw: Dict) -> None:
-        W, H = self.SHEET_W, self.SHEET_H
-        M, TB = self.MARGIN, self.TB_H
-        DX, DY = M+0.5, M+TB+0.5
-        DW, DH = W-M-1.0, H-M-TB-1.0
-        txt = LAYERS["TEXT"][0]; wall = LAYERS["WALL"][0]
-        dim = LAYERS["DIM"][0];  grid = LAYERS["GRID"][0]
-        fill = LAYERS["FILLED"][0]
-
-        # Property boundary
-        prop = [(DX+1,DY+1),(DX+DW-1,DY+1),(DX+DW-1,DY+DH-1),(DX+1,DY+DH-1),(DX+1,DY+1)]
-        msp.add_lwpolyline(prop, dxfattribs={"layer":grid,"lineweight":35,"closed":True})
-        # Building footprint
-        bx = DX+3; by = DY+3; bw = DW-7; bh = DH-7
-        msp.add_lwpolyline([(bx,by),(bx+bw,by),(bx+bw,by+bh),(bx,by+bh),(bx,by)],
-            dxfattribs={"layer":wall,"lineweight":50,"closed":True})
-        h = msp.add_hatch(color=8); h.dxf.layer = fill; h.paths.add_polyline_path(
-            [(bx,by),(bx+bw,by),(bx+bw,by+bh),(bx,by+bh)], is_closed=True)
-
-        # Roads, parking
-        road_y = DY + 0.3
-        msp.add_line((DX, road_y), (DX+DW, road_y), dxfattribs={"layer":grid,"lineweight":25})
-        msp.add_text("RIGHT OF WAY", dxfattribs={"layer":txt,"height":0.12}
-        ).set_placement((DX+DW/2, road_y-0.2), align=TextEntityAlignment.CENTER)
-        msp.add_text("BUILDING FOOTPRINT",dxfattribs={"layer":txt,"height":0.15}
-        ).set_placement((bx+bw/2, by+bh/2), align=TextEntityAlignment.CENTER)
-        msp.add_text("SITE PLAN",dxfattribs={"layer":txt,"height":0.22}
-        ).set_placement((DX+DW/2, DY+DH-0.4), align=TextEntityAlignment.CENTER)
-        self._north_arrow(msp, (DX+DW-0.8, DY+DH-0.9))
-        self._add_code_notes(msp, drw, DX+DW+0.05, DY+DH)
-
-    def _content_elevations(self, msp, drw: Dict) -> None:
-        W, H = self.SHEET_W, self.SHEET_H
-        M, TB = self.MARGIN, self.TB_H
-        DX, DY = M+0.5, M+TB+0.5
-        DW, DH = W-M-1.0, H-M-TB-1.0
-        wall = LAYERS["WALL"][0]; txt = LAYERS["TEXT"][0]
-        win  = LAYERS["WINDOW"][0]; dim = LAYERS["DIM"][0]
-
-        BW, BH = DW*0.85, DH*0.7
-        EX = DX + (DW-BW)/2; EY = DY + 0.8
+    for (ex, ey, width, label) in layouts:
+        scale_e = min(avail_w / (width + 4), avail_h / (bldg_h + roof_h + 4)) * 0.85
+        bw_pts = width * scale_e
+        bh_pts = bldg_h * scale_e
+        rh_pts = roof_h * scale_e
 
         # Ground line
-        msp.add_line((EX-0.5, EY), (EX+BW+0.5, EY),
-                     dxfattribs={"layer":dim,"lineweight":50})
-        # Building envelope
-        msp.add_lwpolyline([(EX,EY),(EX+BW,EY),(EX+BW,EY+BH),(EX,EY+BH),(EX,EY)],
-            dxfattribs={"layer":wall,"lineweight":50,"closed":True})
-        # Parapet
-        par_h = 0.25
-        msp.add_lwpolyline([(EX,EY+BH),(EX+BW,EY+BH),(EX+BW,EY+BH+par_h),
-                             (EX,EY+BH+par_h),(EX,EY+BH)],
-            dxfattribs={"layer":wall,"lineweight":35,"closed":True})
-        # Windows (3 rows)
-        rows = 3; cols = 5
-        win_w = BW*0.12; win_h = BH*0.22
-        x_gap = BW/(cols+1); y_gap = BH/(rows+1)
-        for r in range(rows):
-            for col in range(cols):
-                wx = EX + x_gap*(col+1) - win_w/2
-                wy = EY + y_gap*(r+1) - win_h/2
-                msp.add_lwpolyline(
-                    [(wx,wy),(wx+win_w,wy),(wx+win_w,wy+win_h),(wx,wy+win_h),(wx,wy)],
-                    dxfattribs={"layer":win,"lineweight":25,"closed":True})
-                # Sill
-                msp.add_line((wx-0.05,wy),(wx+win_w+0.05,wy),
-                             dxfattribs={"layer":win,"lineweight":35})
-        # Entry door
-        door_w = BW*0.08; door_x = EX+BW*0.45
-        msp.add_lwpolyline([(door_x,EY),(door_x+door_w,EY),
-                             (door_x+door_w,EY+BH*0.18),(door_x,EY+BH*0.18),(door_x,EY)],
-            dxfattribs={"layer":LAYERS["DOOR"][0],"lineweight":35,"closed":True})
-        # Labels
-        self._add_dim(msp,(EX,EY-0.5),(EX+BW,EY-0.5),"BUILDING WIDTH",dim,txt)
-        self._add_dim(msp,(EX+BW+0.4,EY),(EX+BW+0.4,EY+BH),
-                      f"FIN FLOOR TO PARAPET",dim,txt,vertical=True)
-        msp.add_text("FRONT ELEVATION", dxfattribs={"layer":txt,"height":0.2}
-        ).set_placement((EX+BW/2, EY+BH+0.45), align=TextEntityAlignment.CENTER)
-        self._add_code_notes(msp, drw, DX+DW+0.05, DY+DH)
+        c.setStrokeColor(C_WALL); c.setLineWidth(2.5)
+        c.line(ex - 10, ey, ex + bw_pts + 10, ey)
 
-    def _content_structural(self, msp, drw: Dict) -> None:
-        self._content_generic(msp, drw, "STRUCTURAL DRAWING — SEE STRUCTURAL ENGINEER OF RECORD")
+        # Building outline
+        c.setFillColor(HexColor('#f4f1ea'))
+        c.setStrokeColor(C_WALL); c.setLineWidth(2.0)
+        c.rect(ex, ey, bw_pts, bh_pts, fill=1, stroke=1)
 
-    def _content_sections(self, msp, drw: Dict) -> None:
-        self._content_generic(msp, drw, "BUILDING SECTION — SEE ARCHITECTURAL DRAWINGS")
+        # Parapet / roof
+        c.setFillColor(HexColor('#d8d2c0'))
+        c.rect(ex - 6, ey + bh_pts, bw_pts + 12, rh_pts, fill=1, stroke=1)
 
-    def _content_fire(self, msp, drw: Dict) -> None:
-        self._content_generic(msp, drw, "FIRE & LIFE SAFETY PLAN — PER IBC 2023 §907")
+        # Floor lines
+        c.setStrokeColor(HexColor('#999999')); c.setLineWidth(0.6)
+        c.setDash([8,4])
+        for f in range(1, floors):
+            fy = ey + f * flr_h * scale_e
+            c.line(ex, fy, ex + bw_pts, fy)
+        c.setDash([])
 
-    def _content_accessibility(self, msp, drw: Dict) -> None:
-        self._content_generic(msp, drw, "ACCESSIBILITY PLAN — PER ADA / ICC A117.1-2017")
+        # Windows (regular grid)
+        wins_per_floor = max(2, int(width / 12))
+        win_w = bw_pts / (wins_per_floor + 1) * 0.55
+        win_h = flr_h * scale_e * 0.42
+        for f in range(floors):
+            for w in range(wins_per_floor):
+                wx = ex + (w+1) * bw_pts/(wins_per_floor+1) - win_w/2
+                wy = ey + f*flr_h*scale_e + flr_h*scale_e*0.35
+                c.setFillColor(HexColor('#c8e0f0'))
+                c.setStrokeColor(HexColor('#4a90d9')); c.setLineWidth(1.0)
+                c.rect(wx, wy, win_w, win_h, fill=1, stroke=1)
+                # Mullion
+                c.line(wx+win_w/2, wy, wx+win_w/2, wy+win_h)
 
-    def _content_mep(self, msp, drw: Dict) -> None:
-        self._content_generic(msp, drw, "MEP DRAWINGS — SEE MECHANICAL / ELECTRICAL ENGINEER")
+        # Main entrance (on south only)
+        if 'SOUTH' in label:
+            dw2 = bw_pts * 0.09; dh2 = flr_h * scale_e * 0.72
+            dx2 = ex + bw_pts/2 - dw2/2
+            c.setFillColor(HexColor('#8ab4d4'))
+            c.setStrokeColor(C_WALL); c.setLineWidth(1.5)
+            c.rect(dx2, ey, dw2, dh2, fill=1, stroke=1)
+            c.setFillColor(HexColor('#5a84a4'))
+            c.rect(dx2 + dw2*0.5, ey, dw2*0.5, dh2, fill=1, stroke=0)
 
-    def _content_generic(self, msp, drw: Dict, subtitle: str = "") -> None:
-        W, H = self.SHEET_W, self.SHEET_H
-        M, TB = self.MARGIN, self.TB_H
-        DX, DY = M+0.75, M+TB+0.75
-        DW, DH = W-M-1.5, H-M-TB-1.5
-        txt = LAYERS["TEXT"][0]
-        # Title
-        msp.add_text(drw.get("sheet_type","Drawing").upper(),
-            dxfattribs={"layer":txt,"height":0.3}
-        ).set_placement((DX+DW/2, DY+DH*0.7), align=TextEntityAlignment.CENTER)
-        if subtitle:
-            msp.add_text(subtitle,
-                dxfattribs={"layer":txt,"height":0.14}
-            ).set_placement((DX+DW/2, DY+DH*0.6), align=TextEntityAlignment.CENTER)
-        msp.add_text(self.project,
-            dxfattribs={"layer":txt,"height":0.16}
-        ).set_placement((DX+DW/2, DY+DH*0.5), align=TextEntityAlignment.CENTER)
-        self._add_code_notes(msp, drw, DX, DY+DH*0.42)
+        # Floor height tags
+        c.setFillColor(C_DIM); c.setFont('Helvetica', 6.5)
+        for f in range(floors+1):
+            fy = ey + f * flr_h * scale_e
+            ht_label = "T.O. PARAPET" if f==floors else f"LEVEL {f+1}" if f>0 else "T.O. SLAB"
+            c.drawString(ex + bw_pts + 6, fy - 3, ht_label)
+            elev = f * flr_h
+            c.drawString(ex + bw_pts + 6, fy - 12, f"+{elev:.0f}'-0\"")
+            c.setStrokeColor(C_DIM); c.setLineWidth(0.5)
+            c.line(ex + bw_pts + 3, fy, ex + bw_pts + 5, fy)
 
-    # ── Helpers ───────────────────────────────────────────────────────────
-
-    def _add_dim(self, msp, p1, p2, label, dim_layer, txt_layer,
-                 vertical=False, offset=0.3) -> None:
-        mx, my = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
-        if not vertical:
-            oy = -offset
-            msp.add_line((p1[0],p1[1]+oy),(p2[0],p2[1]+oy), dxfattribs={"layer":dim_layer,"lineweight":18})
-            msp.add_line(p1,(p1[0],p1[1]+oy), dxfattribs={"layer":dim_layer,"lineweight":18})
-            msp.add_line(p2,(p2[0],p2[1]+oy), dxfattribs={"layer":dim_layer,"lineweight":18})
-            msp.add_text(label, dxfattribs={"layer":txt_layer,"height":0.1}
-            ).set_placement((mx, p1[1]+oy-0.13), align=TextEntityAlignment.CENTER)
-        else:
-            ox = offset
-            msp.add_line((p1[0]+ox,p1[1]),(p2[0]+ox,p2[1]), dxfattribs={"layer":dim_layer,"lineweight":18})
-            msp.add_line(p1,(p1[0]+ox,p1[1]), dxfattribs={"layer":dim_layer,"lineweight":18})
-            msp.add_line(p2,(p2[0]+ox,p2[1]), dxfattribs={"layer":dim_layer,"lineweight":18})
-            msp.add_text(label, dxfattribs={"layer":txt_layer,"height":0.1}
-            ).set_placement((p1[0]+ox+0.15, my), align=TextEntityAlignment.LEFT)
-
-    def _north_arrow(self, msp, center) -> None:
-        cx, cy = center; r = 0.25; ln = LAYERS["NORTH"][0]
-        # Circle
-        msp.add_circle(center=(cx, cy, 0), radius=r, dxfattribs={"layer":ln,"lineweight":25})
-        # Arrow up
-        msp.add_lwpolyline([(cx,cy),(cx-0.08,cy-r*0.9),(cx,cy+r*0.95),(cx+0.08,cy-r*0.9),(cx,cy)],
-            dxfattribs={"layer":ln,"lineweight":25,"closed":True})
-        msp.add_text("N", dxfattribs={"layer":ln,"height":0.18}
-        ).set_placement((cx, cy+r+0.05), align=TextEntityAlignment.CENTER)
-
-    def _scale_bar(self, msp, origin, sx, label, txt_layer) -> None:
-        bx, by = origin; unit = 10 * sx; ln = LAYERS["DIM"][0]
-        for i in range(5):
-            fill = i % 2 == 0
-            x = bx + i * unit
-            msp.add_lwpolyline([(x,by),(x+unit,by),(x+unit,by+0.08),(x,by+0.08),(x,by)],
-                dxfattribs={"layer":ln,"lineweight":18,"closed":True})
-        msp.add_text(label, dxfattribs={"layer":txt_layer,"height":0.1}
-        ).set_placement((bx + 2.5*unit, by-0.12), align=TextEntityAlignment.CENTER)
-        msp.add_text("0", dxfattribs={"layer":txt_layer,"height":0.09}
-        ).set_placement((bx, by-0.12), align=TextEntityAlignment.LEFT)
-        msp.add_text("50'", dxfattribs={"layer":txt_layer,"height":0.09}
-        ).set_placement((bx+5*unit, by-0.12), align=TextEntityAlignment.RIGHT)
-
-    def _add_code_notes(self, msp, drw: Dict, x: float, y: float) -> None:
-        txt = LAYERS["TEXT"][0]
-        notes = drw.get("key_notes") or []
-        codes = drw.get("code_sections") or []
-        ada   = drw.get("ada_notes","")
-
-        msp.add_text("GENERAL NOTES", dxfattribs={"layer":txt,"height":0.13}
-        ).set_placement((x, y), align=TextEntityAlignment.LEFT)
-        cy = y - 0.2
-        for i, note in enumerate(notes[:5], 1):
-            txt_val = f"{i}. {str(note)[:70]}"
-            msp.add_text(txt_val, dxfattribs={"layer":txt,"height":0.1}
-            ).set_placement((x, cy), align=TextEntityAlignment.LEFT)
-            cy -= 0.17
-        if codes:
-            cy -= 0.1
-            msp.add_text("CODE REFERENCES", dxfattribs={"layer":txt,"height":0.11}
-            ).set_placement((x, cy), align=TextEntityAlignment.LEFT)
-            cy -= 0.18
-            for code in codes[:4]:
-                msp.add_text(str(code)[:50], dxfattribs={"layer":txt,"height":0.09}
-                ).set_placement((x+0.1, cy), align=TextEntityAlignment.LEFT)
-                cy -= 0.15
-        if ada:
-            cy -= 0.1
-            msp.add_text("ADA/ACCESSIBILITY", dxfattribs={"layer":txt,"height":0.11}
-            ).set_placement((x, cy), align=TextEntityAlignment.LEFT)
-            cy -= 0.16
-            msp.add_text(ada[:70], dxfattribs={"layer":txt,"height":0.09}
-            ).set_placement((x+0.1, cy), align=TextEntityAlignment.LEFT)
+        # Elevation label
+        c.setFillColor(C_TBKG)
+        c.rect(ex, ey - 28, bw_pts, 22, fill=1, stroke=0)
+        c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 9)
+        c.drawCentredString(ex + bw_pts/2, ey - 20, label)
+        c.setFont('Helvetica', 7.5); c.setFillColor(C_TSUB)
+        c.drawCentredString(ex + bw_pts/2, ey - 30, f"Scale: 1/8\" = 1'-0\"")
 
 
-# ---------------------------------------------------------------------------
-# ZIP Package
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────
+#  Sheet C2.0 – Site Plan
+# ─────────────────────────────────────────────────────────────────────────
 
-def build_export_package(job: Dict[str, Any]) -> bytes:
-    """
-    Generate a ZIP containing:
-      • construction_documents.pdf   (full multi-page permit set)
-      • sheets/A1.0_Floor_Plan.dxf   (per-sheet DXF files)
-      • manifest.json                (machine-readable job summary)
-    Returns bytes of the ZIP file.
-    """
-    import json
+def _sheet_site_plan(c, job, bw, bd):
+    """Schematic site plan with property lines, setbacks, parking."""
+    SITE_W  = bw * 3.2
+    SITE_D  = bd * 3.0
+    SETBACK = bw * 0.4
+    SETBACK_D = bd * 0.4
 
-    pdf_bytes = PDFExporter(job).generate()
+    scale_s = min(DRAW_W / (SITE_W + 8),
+                  (DRAW_H - 1*inch) / (SITE_D + 8)) * 0.82
+    ox = DRAW_X0 + (DRAW_W - SITE_W * scale_s) / 2
+    oy = DRAW_Y0 + (DRAW_H - SITE_D * scale_s) / 2
+
+    def SX(ft): return ox + ft * scale_s
+    def SY(ft): return oy + ft * scale_s
+
+    # Property background
+    c.setFillColor(HexColor('#edf5e8'))
+    c.rect(SX(0), SY(0), SITE_W*scale_s, SITE_D*scale_s, fill=1, stroke=0)
+
+    # Property line (dashed)
+    c.setStrokeColor(HexColor('#2c5530')); c.setLineWidth(1.5); c.setDash([12,6])
+    c.rect(SX(0), SY(0), SITE_W*scale_s, SITE_D*scale_s, fill=0, stroke=1)
+    c.setDash([])
+
+    # Street (south)
+    c.setFillColor(HexColor('#c8c8c4'))
+    c.rect(SX(-SITE_W*0.08), SY(-SITE_W*0.12),
+           (SITE_W*1.16)*scale_s, SITE_D*0.10*scale_s, fill=1, stroke=0)
+    c.setFillColor(HexColor('#e8e8e4'))
+    c.rect(SX(0.08*SITE_W), SY(-0.065*SITE_W),
+           (SITE_W*0.84)*scale_s, 2*scale_s, fill=1, stroke=0)
+    c.setFillColor(C_NOTE); c.setFont('Helvetica-Bold', 8)
+    c.drawCentredString(SX(SITE_W/2), SY(-SITE_W*0.07), 'MAIN STREET (PUBLIC R.O.W.)')
+
+    # Setback lines (dashed red)
+    c.setStrokeColor(HexColor('#c0392b')); c.setLineWidth(0.8); c.setDash([8,4])
+    c.rect(SX(SETBACK), SY(SETBACK_D),
+           (SITE_W-2*SETBACK)*scale_s, (SITE_D-2*SETBACK_D)*scale_s, fill=0, stroke=1)
+    c.setDash([])
+    c.setFont('Helvetica-Oblique', 6.5); c.setFillColor(HexColor('#c0392b'))
+    c.drawString(SX(SETBACK)+3, SY(SETBACK_D)+4, 'SETBACK LINE (TYP.)')
+
+    # Building footprint
+    bldg_ox = (SITE_W - bw) / 2
+    bldg_oy = (SITE_D - bd) / 2
+    c.setFillColor(HexColor('#d8cfa8'))
+    c.setStrokeColor(C_WALL); c.setLineWidth(2.2)
+    c.rect(SX(bldg_ox), SY(bldg_oy), bw*scale_s, bd*scale_s, fill=1, stroke=1)
+    c.setFillColor(C_NOTE); c.setFont('Helvetica-Bold', 9)
+    c.drawCentredString(SX(bldg_ox + bw/2), SY(bldg_oy + bd/2),
+                        job.get('project_name','PROJECT')[:20])
+    c.setFont('Helvetica', 7.5); c.setFillColor(HexColor('#555'))
+    c.drawCentredString(SX(bldg_ox + bw/2), SY(bldg_oy + bd/2)-12,
+                        f'{int(bw*bd):,} SF FOOTPRINT')
+
+    # Parking (east side)
+    park_ox = bldg_ox + bw + 4
+    park_spaces = min(20, int((SITE_D - 2*SETBACK_D) / 9))
+    stall_w = 9.0; stall_d = 18.0
+    pk_cols = 2
+    c.setFillColor(HexColor('#ddddd4'))
+    c.setStrokeColor(C_WALL); c.setLineWidth(0.6)
+    c.rect(SX(park_ox), SY(SETBACK_D),
+           (stall_d*pk_cols+3)*scale_s,
+           (min(park_spaces,10)*stall_w+2)*scale_s, fill=1, stroke=1)
+    for sp in range(min(park_spaces,10)):
+        for col in range(pk_cols):
+            sx2 = SX(park_ox + col*(stall_d+3))
+            sy2 = SY(SETBACK_D + sp*stall_w + 1)
+            c.setFillColor(HexColor('#f0f0ea'))
+            c.rect(sx2, sy2, stall_d*scale_s, stall_w*scale_s, fill=1, stroke=1)
+            c.setFillColor(C_DIM); c.setFont('Helvetica', 5.5)
+            c.drawCentredString(sx2 + stall_d*scale_s/2, sy2 + 3, 'P')
+    c.setFont('Helvetica-Bold', 7); c.setFillColor(C_NOTE)
+    c.drawCentredString(SX(park_ox + stall_d*pk_cols/2 + 1.5),
+                        SY(SETBACK_D + min(park_spaces,10)*stall_w/2),
+                        f'PARKING\n{park_spaces} SPACES')
+
+    # Drive aisle
+    c.setFillColor(HexColor('#c8c4b8'))
+    c.rect(SX(park_ox + stall_d*pk_cols + 3), SY(SETBACK_D),
+           4*scale_s, (SITE_D - 2*SETBACK_D)*scale_s, fill=1, stroke=0)
+
+    # North arrow + scale
+    _north_arrow(c, DRAW_X1 - 1.6*inch, DRAW_Y0 + 70)
+    _scale_bar(c, DRAW_X1 - 3.0*inch, DRAW_Y0 + 22,
+               min(DRAW_W / (SITE_W+8), DRAW_H / (SITE_D+8)) * 0.82)
+
+    # Legend
+    lx = DRAW_X0 + 10; ly = DRAW_Y0 + 10
+    items = [
+        (HexColor('#d8cfa8'), C_WALL, 'PROPOSED BUILDING'),
+        (HexColor('#edf5e8'), HexColor('#2c5530'), 'PROPERTY / LOT LINE'),
+        (HexColor('#ddddd4'), C_WALL, 'PAVED PARKING AREA'),
+        (HexColor('#c8c8c4'), None, 'EXISTING STREET / R.O.W.'),
+    ]
+    c.setFont('Helvetica-Bold', 7.5); c.setFillColor(C_NOTE)
+    c.drawString(lx, ly + len(items)*14 + 4, 'LEGEND')
+    for i, (fill, stroke, text) in enumerate(items):
+        c.setFillColor(fill)
+        lw = 0.6 if stroke else 0
+        c.setStrokeColor(stroke or C_BLK); c.setLineWidth(lw)
+        c.rect(lx, ly + i*14, 14, 10, fill=1, stroke=1 if stroke else 0)
+        c.setFillColor(C_NOTE); c.setFont('Helvetica', 7)
+        c.drawString(lx + 18, ly + i*14 + 2, text)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+#  Sheet S4.0 – Structural
+# ─────────────────────────────────────────────────────────────────────────
+
+def _sheet_structural(c, job, bw, bd):
+    """Structural framing plan with column grid, beams, notes."""
+    scale_s = min((DRAW_W - 3*inch) / (bw + 6),
+                  (DRAW_H - 1.5*inch) / (bd + 6)) * 0.85
+    ox = DRAW_X0 + (DRAW_W - bw*scale_s) / 2
+    oy = DRAW_Y0 + (DRAW_H - bd*scale_s) / 2 + 0.5*inch
+
+    def X(ft): return ox + ft * scale_s
+    def Y(ft): return oy + ft * scale_s
+
+    COLS_X = 4; COLS_Y = 3
+    bay_w  = bw / COLS_X; bay_d = bd / COLS_Y
+
+    # Slab hatch (light grey)
+    c.setFillColor(HexColor('#f0eee8'))
+    c.rect(X(0), Y(0), bw*scale_s, bd*scale_s, fill=1, stroke=0)
+    c.setStrokeColor(HexColor('#ddd8cc')); c.setLineWidth(0.3)
+    for hx in range(0, int(bw*2)+1):
+        c.line(X(hx*0.5), Y(0), X(hx*0.5), Y(bd))
+    for hy in range(0, int(bd*2)+1):
+        c.line(X(0), Y(hy*0.5), X(bw), Y(hy*0.5))
+
+    # Beam lines
+    c.setStrokeColor(HexColor('#333333')); c.setLineWidth(3.5)
+    for col in range(COLS_X+1):
+        c.line(X(col*bay_w), Y(0), X(col*bay_w), Y(bd))
+    for row in range(COLS_Y+1):
+        c.line(X(0), Y(row*bay_d), X(bw), Y(row*bay_d))
+
+    # Secondary framing
+    c.setStrokeColor(HexColor('#777777')); c.setLineWidth(1.2)
+    c.setDash([])
+    for col in range(COLS_X):
+        c.line(X((col+0.5)*bay_w), Y(0), X((col+0.5)*bay_w), Y(bd))
+    for row in range(COLS_Y):
+        c.line(X(0), Y((row+0.5)*bay_d), X(bw), Y((row+0.5)*bay_d))
+
+    # Columns (filled squares)
+    COL_SZ = 0.67 * scale_s
+    for cx_i in range(COLS_X+1):
+        for cy_i in range(COLS_Y+1):
+            px = X(cx_i*bay_w) - COL_SZ/2
+            py = Y(cy_i*bay_d) - COL_SZ/2
+            c.setFillColor(C_WALL); c.setStrokeColor(C_BLK); c.setLineWidth(0.4)
+            c.rect(px, py, COL_SZ, COL_SZ, fill=1, stroke=1)
+            # Column mark
+            mark = f"{chr(65+cy_i)}{cx_i+1}"
+            c.setFillColor(C_DIM); c.setFont('Helvetica-Bold', 6)
+            c.drawCentredString(px + COL_SZ/2, py + COL_SZ + 2, mark)
+
+    # Grid bubbles
+    for i in range(COLS_X+1):
+        cx2 = X(i*bay_w); cy2 = Y(bd) + 22
+        c.setFillColor(C_WHT); c.setStrokeColor(C_DIM); c.setLineWidth(0.8)
+        c.circle(cx2, cy2, 10, fill=1, stroke=1)
+        c.setFillColor(C_DIM); c.setFont('Helvetica-Bold', 8)
+        c.drawCentredString(cx2, cy2-3, str(i+1))
+    for i in range(COLS_Y+1):
+        cy2 = Y(i*bay_d); cx2 = X(0) - 22
+        c.setFillColor(C_WHT); c.setStrokeColor(C_DIM); c.setLineWidth(0.8)
+        c.circle(cx2, cy2, 10, fill=1, stroke=1)
+        c.setFillColor(C_DIM); c.setFont('Helvetica-Bold', 8)
+        c.drawCentredString(cx2, cy2-3, chr(65+i))
+
+    # Bay dimensions
+    for i in range(COLS_X):
+        x1 = X(i*bay_w); x2 = X((i+1)*bay_w)
+        _dim_line(c, x1, Y(0), x2, Y(0), f"{bay_w:.0f}'-0\"", offset=22)
+    for i in range(COLS_Y):
+        y1 = Y(i*bay_d); y2 = Y((i+1)*bay_d)
+        _dim_line(c, X(0), y1, X(0), y2, f"{bay_d:.0f}'-0\"", offset=26, horiz=False)
+
+    # Structural notes
+    sdc = (job.get('jurisdiction_details') or {}).get('seismic_design_category','B')
+    wind = (job.get('jurisdiction_details') or {}).get('wind_speed_mph', 90)
+    ct = job.get('construction_type','Type II-A')
+    NX = DRAW_X1 - 2.0*inch; NY = DRAW_Y1 - 15
+    c.setFont('Helvetica-Bold', 8); c.setFillColor(C_NOTE)
+    c.drawString(NX, NY, 'STRUCTURAL NOTES')
+    c.setStrokeColor(C_DIM); c.setLineWidth(0.5)
+    c.line(NX, NY-3, NX+1.9*inch, NY-3)
+    struct_notes = [
+        f'1. Construction Type: {ct}',
+        f'2. Seismic SDC: {sdc}  /  ASCE 7',
+        f'3. Wind Speed: {wind or "N/A"} mph (Exp. C)',
+        '4. Live Load: 50 PSF (office), 100 PSF (corridor)',
+        '5. Dead Load: 20 PSF superimposed',
+        '6. Columns: HSS 8×8×½ steel tube (typical)',
+        '7. Primary beams: W14×48 (typical)',
+        '8. Secondary: W10×30 at mid-bay (typical)',
+        '9. Slab: 6" normal-weight concrete on deck',
+        '10. Connections per AISC per structural EOR.',
+        '11. Geotechnical report governs all footing design.',
+    ]
+    c.setFont('Helvetica', 7); c.setFillColor(HexColor('#333'))
+    for i, note in enumerate(struct_notes):
+        c.drawString(NX, NY - 16 - i*11, note)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+#  Sheet FP5.0 – Fire & Life Safety
+# ─────────────────────────────────────────────────────────────────────────
+
+def _sheet_fire_life_safety(c, job, placed, bw, bd):
+    """Fire & life safety plan: egress, exits, extinguishers."""
+    scale_f = min((DRAW_W - 2.5*inch) / (bw + 6),
+                  (DRAW_H - 1.5*inch) / (bd + 6)) * 0.85
+    ox = DRAW_X0 + (DRAW_W - bw*scale_f) / 2
+    oy = DRAW_Y0 + (DRAW_H - bd*scale_f) / 2 + 0.3*inch
+
+    def X(ft): return ox + ft * scale_f
+    def Y(ft): return oy + ft * scale_f
+
+    MAR = 1.5
+
+    # Building outline
+    c.setFillColor(HexColor('#f9f6ee'))
+    c.rect(X(MAR), Y(MAR), (bw-2*MAR)*scale_f, (bd-2*MAR)*scale_f, fill=1, stroke=0)
+    c.setFillColor(C_WALL); c.setStrokeColor(C_BLK); c.setLineWidth(2.5)
+    c.rect(X(MAR), Y(MAR), (bw-2*MAR)*scale_f, (bd-2*MAR)*scale_f, fill=0, stroke=1)
+
+    # Room outlines (light)
+    for r in placed:
+        rx, ry = r.get('_x',0), r.get('_y',0)
+        rw = r.get('_w', r.get('width_ft',12))
+        rd = r.get('_d', r.get('depth_ft',14))
+        c.setFillColor(HexColor('#f0ece0'))
+        c.setStrokeColor(HexColor('#aaaaaa')); c.setLineWidth(0.5)
+        c.rect(X(rx), Y(ry), rw*scale_f, rd*scale_f, fill=1, stroke=1)
+        c.setFillColor(HexColor('#888')); c.setFont('Helvetica', 6)
+        c.drawCentredString(X(rx+rw/2), Y(ry+rd/2)-3, r.get('name','')[:15])
+
+    # Egress paths (green arrows)
+    exits = [
+        (MAR, bd/2, -1, 0, 'EXIT 1'),
+        (bw-MAR, bd/2,  1, 0, 'EXIT 2'),
+        (bw/2,   MAR, 0, -1, 'EXIT 3'),
+    ]
+    for (ex_ft, ey_ft, dx, dy, lbl) in exits:
+        ex2 = X(ex_ft); ey2 = Y(ey_ft)
+        alen = 36
+        c.setStrokeColor(C_EXIT); c.setFillColor(C_EXIT); c.setLineWidth(2.5)
+        c.line(ex2, ey2, ex2 + dx*alen, ey2 + dy*alen)
+        # Arrowhead
+        p = c.beginPath()
+        p.moveTo(ex2+dx*alen, ey2+dy*alen)
+        perp_x = -dy; perp_y = dx
+        p.lineTo(ex2+dx*alen - dx*8 + perp_x*6, ey2+dy*alen - dy*8 + perp_y*6)
+        p.lineTo(ex2+dx*alen - dx*8 - perp_x*6, ey2+dy*alen - dy*8 - perp_y*6)
+        p.close(); c.drawPath(p, fill=1, stroke=0)
+        # Label
+        c.setFont('Helvetica-Bold', 8); c.setFillColor(C_EXIT)
+        lx2 = ex2 + dx*alen + dx*8; ly2 = ey2 + dy*alen + dy*8
+        c.drawCentredString(lx2, ly2-3, lbl)
+
+    # Egress travel path
+    c.setStrokeColor(HexColor('#e67e22')); c.setLineWidth(1.2); c.setDash([6,4])
+    c.line(X(bw/2), Y(bd/2), X(MAR*0.3), Y(bd/2))
+    c.line(X(bw/2), Y(bd/2), X(bw-MAR*0.3), Y(bd/2))
+    c.setDash([])
+
+    # Fire extinguisher symbols
+    FE_POS = [(bw*0.3, bd*0.5), (bw*0.7, bd*0.5), (bw/2, bd*0.8)]
+    for (fex, fey) in FE_POS:
+        px = X(fex); py = Y(fey)
+        c.setFillColor(C_EXIT); c.setLineWidth(0)
+        c.circle(px, py, 7, fill=1, stroke=0)
+        c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 7)
+        c.drawCentredString(px, py-2.5, 'FE')
+
+    # Sprinkler heads
+    if job.get('sprinklered'):
+        for r in placed:
+            rx, ry = r.get('_x',0), r.get('_y',0)
+            rw = r.get('_w',12); rd = r.get('_d',14)
+            px = X(rx+rw/2); py = Y(ry+rd/2)+15
+            c.setStrokeColor(C_WIN); c.setLineWidth(0.8)
+            c.circle(px, py, 4, fill=0, stroke=1)
+            c.line(px-5, py, px+5, py)
+            c.line(px, py-5, px, py+5)
+
+    # Legend
+    lx = DRAW_X1 - 2.1*inch; ly = DRAW_Y0 + 10
+    legends = [
+        (C_EXIT, '→', 'EXIT / EGRESS DIRECTION'),
+        (HexColor('#e67e22'), '---', 'EGRESS TRAVEL PATH'),
+        (C_EXIT, '●', 'FIRE EXTINGUISHER'),
+        (C_WIN, '⊕', 'SPRINKLER HEAD'),
+    ]
+    c.setFont('Helvetica-Bold', 7.5); c.setFillColor(C_NOTE)
+    c.drawString(lx, ly + len(legends)*14 + 6, 'LIFE SAFETY LEGEND')
+    for i, (col, sym, text) in enumerate(legends):
+        c.setFillColor(col); c.setFont('Helvetica-Bold', 9)
+        c.drawString(lx, ly + i*14 + 2, sym)
+        c.setFillColor(C_NOTE); c.setFont('Helvetica', 7.5)
+        c.drawString(lx + 18, ly + i*14 + 2, text)
+
+    # IBC egress notes
+    r_data = job.get('compliance_report', {})
+    NX = DRAW_X0 + 10; NY = DRAW_Y1 - 15
+    c.setFont('Helvetica-Bold', 7.5); c.setFillColor(C_NOTE)
+    c.drawString(NX, NY, 'EGRESS / CODE NOTES')
+    c.setStrokeColor(C_DIM); c.setLineWidth(0.4)
+    c.line(NX, NY-3, NX + 2.2*inch, NY-3)
+    occ_load = int((job.get('gross_sq_ft') or 10000) / 150)
+    exits_req = 2 if occ_load <= 500 else 3 if occ_load <= 1000 else 4
+    enotes = [
+        f'1. Occupant Load: {occ_load} persons (IBC Table 1004.1)',
+        f'2. Number of Exits Required: {exits_req} (IBC §1006.3)',
+        '3. Min. Exit Access Door Width: 32" clear (IBC §1010.1)',
+        '4. Max Travel Distance: 250 ft sprinklered (IBC §1017)',
+        '5. Corridor Width: 44" minimum (IBC §1020.2)',
+        '6. Exit Signage: per IBC §1013 at all exits',
+        '7. Emergency Lighting: per IBC §1008 throughout',
+        f'8. Fire Extinguishers: Class ABC, 75 ft max travel',
+        '9. All doors to swing in direction of travel when',
+        '   serving 50+ occupants (IBC §1010.1.2)',
+    ]
+    c.setFont('Helvetica', 6.5); c.setFillColor(HexColor('#333'))
+    for i, note in enumerate(enotes):
+        c.drawString(NX, NY - 16 - i*11, note)
+
+    _north_arrow(c, DRAW_X1 - 1.6*inch, DRAW_Y0 + 65)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+#  Cover Sheet
+# ─────────────────────────────────────────────────────────────────────────
+
+def _sheet_cover(c, job, total_sheets):
+    """Professional cover sheet with project summary and compliance."""
+    CX = PW / 2
+
+    # Dark header band
+    c.setFillColor(C_TBKG)
+    c.rect(0, PH - 5*inch, PW, 5*inch, fill=1, stroke=0)
+
+    # Project name
+    c.setFillColor(C_TACC); c.setFont('Helvetica-Bold', 36)
+    name = job.get('project_name','Project')
+    c.drawCentredString(CX, PH - 1.4*inch, name[:40])
+
+    # Sub-line
+    c.setFillColor(C_TSUB); c.setFont('Helvetica', 16)
+    c.drawCentredString(CX, PH - 2.1*inch,
+        job.get('building_type','Commercial') + '  ·  ' + job.get('primary_code','IBC 2023'))
+    c.setFont('Helvetica', 13)
+    c.drawCentredString(CX, PH - 2.65*inch,
+        job.get('jurisdiction_preset','') + '  ·  Issued: ' + _now())
+
+    # Decorative line
+    c.setStrokeColor(C_TACC); c.setLineWidth(2.5)
+    c.line(BDR_L + inch, PH - 3.1*inch, PW - inch, PH - 3.1*inch)
+
+    # Compliance badge
+    rpt = job.get('compliance_report', {})
+    compliant = rpt.get('is_compliant', True)
+    c.setFillColor(C_GRN if compliant else C_RED)
+    c.roundRect(CX - 0.8*inch, PH - 4.5*inch, 1.6*inch, 0.7*inch, 6, fill=1, stroke=0)
+    c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 13)
+    c.drawCentredString(CX, PH - 4.08*inch,
+                        '✓  COMPLIANT' if compliant else '✗  NON-COMPLIANT')
+
+    # Project data boxes
+    box_data = [
+        ('OCCUPANCY GROUP', job.get('occupancy_group','B')),
+        ('CONSTRUCTION TYPE', (job.get('construction_type','') or '')[:16]),
+        ('GROSS FLOOR AREA', f"{int(job.get('gross_sq_ft') or 10000):,} SF"),
+        ('STORIES', str(job.get('num_stories') or 1)),
+        ('SPRINKLER SYSTEM', 'Required' if job.get('sprinklered') else 'Not Required'),
+        ('SEISMIC SDC', (job.get('jurisdiction_details') or {}).get('seismic_design_category','B')),
+    ]
+    n = len(box_data); cols = 3
+    box_w = (DRAW_W - inch) / cols; box_h = 0.9*inch
+    base_y = PH - 5*inch - box_h - 0.4*inch
+    for i, (lbl, val) in enumerate(box_data):
+        col = i % cols; row = i // cols
+        bx = DRAW_X0 + col * box_w
+        by = base_y - row * (box_h + 8)
+        c.setFillColor(HexColor('#eef2f8'))
+        c.setStrokeColor(C_DIM); c.setLineWidth(0.5)
+        c.roundRect(bx+3, by, box_w - 8, box_h, 4, fill=1, stroke=1)
+        c.setFillColor(C_DIM); c.setFont('Helvetica', 7.5)
+        c.drawCentredString(bx + box_w/2, by + box_h - 16, lbl)
+        c.setFillColor(C_NOTE); c.setFont('Helvetica-Bold', 13)
+        c.drawCentredString(bx + box_w/2, by + box_h*0.25, val)
+
+    # Sheet index table
+    ix = DRAW_X0 + 0.5*inch
+    iy = base_y - 2*(box_h+8) - 0.5*inch
+    c.setFillColor(C_TBKG); c.setStrokeColor(C_DIM); c.setLineWidth(0.5)
+    c.roundRect(ix, iy - total_sheets*18 - 10, DRAW_W - inch, total_sheets*18+30, 6, fill=1, stroke=1)
+    c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 9)
+    c.drawString(ix+10, iy+5, 'DRAWING INDEX')
+    c.setStrokeColor(HexColor('#2a4a6a')); c.setLineWidth(0.4)
+    c.line(ix+10, iy+2, ix + DRAW_W - inch - 10, iy+2)
+    sheet_list = [
+        ('G0.0', 'Cover Sheet & Project Information'),
+        ('A1.0', 'Architectural Floor Plan – Level 1'),
+        ('A3.0', 'Exterior Elevations – All Sides'),
+        ('C2.0', 'Site Plan'),
+        ('S4.0', 'Structural Framing Plan'),
+        ('FP5.0','Fire & Life Safety Plan'),
+    ][:total_sheets]
+    for i, (num, desc) in enumerate(sheet_list):
+        sy = iy - 14 - i*18
+        c.setFillColor(HexColor('#eef2f8') if i%2==0 else C_TBKG)
+        c.setFillColor(C_TACC); c.setFont('Helvetica-Bold', 8.5)
+        c.drawString(ix+12, sy, num)
+        c.setFillColor(C_TSUB); c.setFont('Helvetica', 8)
+        c.drawString(ix+80, sy, desc)
+
+    # Stamp box
+    sx = DRAW_X1 - 1.8*inch; sy = DRAW_Y0 + 1.2*inch
+    c.setFillColor(C_WHT); c.setStrokeColor(C_DIM); c.setLineWidth(1.0)
+    c.roundRect(sx, sy, 1.6*inch, 1.5*inch, 6, fill=1, stroke=1)
+    c.circle(sx + 0.8*inch, sy + 0.9*inch, 0.5*inch, fill=0, stroke=1)
+    c.setFont('Helvetica', 5.5); c.setFillColor(C_DIM)
+    c.drawCentredString(sx + 0.8*inch, sy + 0.88*inch, 'ARCHITECT SEAL')
+    c.drawCentredString(sx + 0.8*inch, sy + 0.72*inch, 'PLACE HERE')
+    c.setFont('Helvetica', 6.5)
+    c.drawCentredString(sx + 0.8*inch, sy + 0.2*inch, 'Architectural AI Platform')
+    c.drawCentredString(sx + 0.8*inch, sy + 0.06*inch, _yr())
+
+
+# ─────────────────────────────────────────────────────────────────────────
+#  Master PDF Exporter
+# ─────────────────────────────────────────────────────────────────────────
+
+class PDFExporter:
+    def __init__(self, job: Dict):
+        self.job = job
+
+    def generate(self) -> bytes:
+        buf = io.BytesIO()
+        c   = rl_canvas.Canvas(buf, pagesize=(PW, PH))
+        c.setTitle(self.job.get('project_name','Project') + ' – Construction Documents')
+
+        rooms  = _canonical_rooms(self.job)
+        placed, bw, bd = _layout(rooms)
+
+        # Calculate drawing scale
+        scale  = min((DRAW_W - 2.5*inch) / (bw + 6),
+                     (DRAW_H - 1.5*inch) / (bd + 6)) * 0.82
+
+        SHEETS = [
+            ('G0.0',  'Cover Sheet'),
+            ('A1.0',  'Floor Plan – Level 1'),
+            ('A3.0',  'Exterior Elevations'),
+            ('C2.0',  'Site Plan'),
+            ('S4.0',  'Structural Framing Plan'),
+            ('FP5.0', 'Fire & Life Safety Plan'),
+        ]
+
+        # Add sheets only for requested drawing sets
+        draw_sets = set(self.job.get('drawing_sets', SHEETS))
+        def want(name):
+            keywords = {'Floor': 'Floor Plan', 'Elev': 'Exterior Elevations',
+                        'Site': 'Site Plan', 'Struct': 'Structural',
+                        'Fire': 'Fire', 'Cover': 'Cover'}
+            return True  # Always generate all 6 for now
+
+        total = len(SHEETS)
+        sheet_funcs = {
+            'G0.0':  lambda c: _sheet_cover(c, self.job, total),
+            'A1.0':  lambda c: _sheet_floor_plan(c, self.job, rooms, placed,
+                                                  bw, bd, scale, 'A1.0', total),
+            'A3.0':  lambda c: _sheet_elevations(c, self.job, bw, bd),
+            'C2.0':  lambda c: _sheet_site_plan(c, self.job, bw, bd),
+            'S4.0':  lambda c: _sheet_structural(c, self.job, bw, bd),
+            'FP5.0': lambda c: _sheet_fire_life_safety(c, self.job, placed, bw, bd),
+        }
+
+        for i, (num, title) in enumerate(SHEETS):
+            c.saveState()
+            sheet_funcs[num](c)
+            _border(c)
+            sc = "1/8\"=1'-0\"" if num != 'G0.0' else 'N/A'
+            _title_block(c, self.job, num, title, sc, total)
+            c.restoreState()
+            c.showPage()
+
+        c.save()
+        return buf.getvalue()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+#  DXF Exporter  (AIA layers, real geometry)
+# ─────────────────────────────────────────────────────────────────────────
+
+class DXFExporter:
+    def __init__(self, job: Dict):
+        self.job = job
+
+    def generate_all_sheets(self) -> Dict[str, bytes]:
+        rooms  = _canonical_rooms(self.job)
+        placed, bw, bd = _layout(rooms)
+        sheets = {}
+        for fname, title, fn in [
+            ('A1.0_Floor_Plan.dxf',          'Floor Plan',          lambda: self._floor_plan_dxf(placed, bw, bd)),
+            ('A3.0_Exterior_Elevations.dxf',  'Exterior Elevations', lambda: self._elevation_dxf(bw, bd)),
+            ('C2.0_Site_Plan.dxf',            'Site Plan',           lambda: self._site_dxf(bw, bd)),
+            ('S4.0_Structural.dxf',           'Structural',          lambda: self._structural_dxf(bw, bd)),
+            ('FP5.0_Fire_Safety.dxf',         'Fire & Life Safety',  lambda: self._fire_dxf(placed, bw, bd)),
+        ]:
+            try:
+                sheets[fname] = fn()
+            except Exception as e:
+                sheets[fname] = self._error_dxf(title, str(e))
+        return sheets
+
+    def _new_doc(self, title):
+        import ezdxf
+        from ezdxf.enums import TextEntityAlignment
+        doc = ezdxf.new('R2010')
+        doc.units = ezdxf.units.IN
+        layers = [
+            ('A-WALL',      7,  50),  ('A-WALL-INTR',  7,  35),
+            ('A-GLAZ',      4,  18),  ('A-DOOR',       7,  25),
+            ('A-ANNO-TEXT', 2,  18),  ('A-ANNO-DIMS',  2,  13),
+            ('A-FLOR-PATT', 8,  13),  ('A-ANNO-BORD',  7,  70),
+            ('A-GRID',      3,   9),  ('S-COLS',       7,  50),
+            ('C-PROP',      2,  25),  ('C-PARK',       4,  13),
+            ('FP-EXIT',     1,  25),  ('FP-EQUIP',     1,  18),
+        ]
+        for name, colour, lw in layers:
+            try:
+                l = doc.layers.add(name)
+                l.color = colour; l.lineweight = lw
+            except Exception:
+                pass
+        return doc
+
+    def _write(self, doc) -> bytes:
+        import io as _io
+        buf = _io.StringIO()
+        doc.write(buf)
+        return buf.getvalue().encode('utf-8')
+
+    def _f(self, ft): return ft * 12   # feet → inches
+
+    def _floor_plan_dxf(self, placed, bw, bd):
+        import ezdxf
+        from ezdxf.enums import TextEntityAlignment
+        doc = self._new_doc('Floor Plan')
+        msp = doc.modelspace()
+        f = self._f
+        MAR = 1.5
+
+        # Exterior wall
+        pts = [(f(MAR),f(MAR)),(f(bw-MAR),f(MAR)),(f(bw-MAR),f(bd-MAR)),(f(MAR),f(bd-MAR))]
+        msp.add_lwpolyline(pts, dxfattribs={'layer':'A-WALL','closed':True})
+
+        # Interior walls + rooms
+        drawn = set()
+        for r in placed:
+            rx,ry = r.get('_x',0), r.get('_y',0)
+            rw = r.get('_w', r.get('width_ft',12))
+            rd = r.get('_d', r.get('depth_ft',14))
+            for (ax,ay,bx2,by2) in [(rx,ry,rx+rw,ry),(rx+rw,ry,rx+rw,ry+rd),
+                                      (rx,ry+rd,rx+rw,ry+rd),(rx,ry,rx,ry+rd)]:
+                k = (round(min(ax,bx2),1),round(min(ay,by2),1),round(max(ax,bx2),1),round(max(ay,by2),1))
+                if k in drawn: continue
+                drawn.add(k)
+                msp.add_line((f(ax),f(ay)),(f(bx2),f(by2)), dxfattribs={'layer':'A-WALL-INTR'})
+            # Label
+            cx = f(rx+rw/2); cy = f(ry+rd/2)
+            msp.add_text(r.get('name',''), dxfattribs={'layer':'A-ANNO-TEXT','height':f(0.7)}
+            ).set_placement((cx,cy+f(0.4)), align=TextEntityAlignment.CENTER)
+            msp.add_text(f"{r.get('sqft',int(rw*rd)):.0f} SF",
+                         dxfattribs={'layer':'A-ANNO-TEXT','height':f(0.5)}
+            ).set_placement((cx,cy-f(0.4)), align=TextEntityAlignment.CENTER)
+
+        # Overall dimensions
+        dim_y = f(MAR) - 18
+        msp.add_line((f(MAR),dim_y),(f(bw-MAR),dim_y), dxfattribs={'layer':'A-ANNO-DIMS'})
+        msp.add_text(f"{int(bw-2*MAR)}'-0\"",
+                     dxfattribs={'layer':'A-ANNO-DIMS','height':f(0.7)}
+        ).set_placement((f(bw/2),dim_y-f(1)), align=TextEntityAlignment.CENTER)
+
+        # Title block
+        msp.add_text(job_val(self.job,'project_name','Project'),
+                     dxfattribs={'layer':'A-ANNO-BORD','height':f(1.2)}
+        ).set_placement((f(MAR),f(bd)+f(2)), align=TextEntityAlignment.LEFT)
+        msp.add_text('FLOOR PLAN – LEVEL 1  |  Scale: 1/8"=1\'-0"  |  ' + _now(),
+                     dxfattribs={'layer':'A-ANNO-BORD','height':f(0.65)}
+        ).set_placement((f(MAR),f(bd)+f(3.2)), align=TextEntityAlignment.LEFT)
+        msp.add_text('A1.0', dxfattribs={'layer':'A-ANNO-BORD','height':f(1.8)}
+        ).set_placement((f(bw-MAR),f(bd)+f(2)), align=TextEntityAlignment.RIGHT)
+        return self._write(doc)
+
+    def _elevation_dxf(self, bw, bd):
+        import ezdxf
+        from ezdxf.enums import TextEntityAlignment
+        doc = self._new_doc('Elevations'); msp = doc.modelspace(); f=self._f
+        floors = int(self.job.get('num_stories') or 1)
+        flr_h  = 12.0; bh = floors*flr_h; rh=3.0
+        for ei, (wx, label, width) in enumerate([
+            (0, 'SOUTH ELEVATION', bw),
+            (bw+10, 'NORTH ELEVATION', bw),
+            (0, 'EAST ELEVATION', bd),
+            (bd+10, 'EAST ELEVATION', bd),
+        ]):
+            ox = f(ei*(bw+10) if ei<2 else 0)
+            oy = f(0 if ei<2 else (bh+rh+8))
+            W  = f(width); H=f(bh); RH=f(rh)
+            msp.add_lwpolyline([(ox,oy),(ox+W,oy),(ox+W,oy+H),(ox,oy+H)],
+                               dxfattribs={'layer':'A-WALL','closed':True})
+            msp.add_lwpolyline([(ox-f(0.5),oy+H),(ox+W+f(0.5),oy+H),(ox+W+f(0.5),oy+H+RH),(ox-f(0.5),oy+H+RH)],
+                               dxfattribs={'layer':'A-WALL','closed':True})
+            for fl in range(1,floors):
+                fy=oy+f(fl*flr_h)
+                msp.add_line((ox,fy),(ox+W,fy),dxfattribs={'layer':'A-WALL-INTR'})
+            msp.add_text(label,dxfattribs={'layer':'A-ANNO-TEXT','height':f(0.9)}
+            ).set_placement((ox+W/2,oy-f(2.5)),align=TextEntityAlignment.CENTER)
+        msp.add_text(job_val(self.job,'project_name','Project') + ' – EXTERIOR ELEVATIONS',
+                     dxfattribs={'layer':'A-ANNO-BORD','height':f(1.2)}
+        ).set_placement((0,f(bh+rh+18)),align=TextEntityAlignment.LEFT)
+        return self._write(doc)
+
+    def _site_dxf(self, bw, bd):
+        import ezdxf
+        from ezdxf.enums import TextEntityAlignment
+        doc=self._new_doc('Site Plan'); msp=doc.modelspace(); f=self._f
+        SW=bw*3.2; SD=bd*3.0; SET=bw*0.4; SETD=bd*0.4
+        ox=(SW-bw)/2; oy=(SD-bd)/2
+        msp.add_lwpolyline([(0,0),(f(SW),0),(f(SW),f(SD)),(0,f(SD))],
+                           dxfattribs={'layer':'C-PROP','closed':True,'linetype':'DASHED'})
+        msp.add_lwpolyline([(f(SET),f(SETD)),(f(SW-SET),f(SETD)),
+                            (f(SW-SET),f(SD-SETD)),(f(SET),f(SD-SETD))],
+                           dxfattribs={'layer':'C-PROP','closed':True,'linetype':'DASHED'})
+        msp.add_lwpolyline([(f(ox),f(oy)),(f(ox+bw),f(oy)),
+                            (f(ox+bw),f(oy+bd)),(f(ox),f(oy+bd))],
+                           dxfattribs={'layer':'A-WALL','closed':True})
+        msp.add_text('BUILDING',dxfattribs={'layer':'A-ANNO-TEXT','height':f(1)}
+        ).set_placement((f(ox+bw/2),f(oy+bd/2)),align=TextEntityAlignment.CENTER)
+        msp.add_text(job_val(self.job,'project_name','Project') + ' – SITE PLAN',
+                     dxfattribs={'layer':'A-ANNO-BORD','height':f(1.2)}
+        ).set_placement((0,f(SD)+f(3)),align=TextEntityAlignment.LEFT)
+        return self._write(doc)
+
+    def _structural_dxf(self, bw, bd):
+        import ezdxf
+        from ezdxf.enums import TextEntityAlignment
+        doc=self._new_doc('Structural'); msp=doc.modelspace(); f=self._f
+        COLS_X=4; COLS_Y=3; bxw=bw/COLS_X; byd=bd/COLS_Y
+        for i in range(COLS_X+1):
+            msp.add_line((f(i*bxw),0),(f(i*bxw),f(bd)),dxfattribs={'layer':'S-COLS'})
+        for i in range(COLS_Y+1):
+            msp.add_line((0,f(i*byd)),(f(bw),f(i*byd)),dxfattribs={'layer':'S-COLS'})
+        CS=f(0.67)
+        for cx2 in range(COLS_X+1):
+            for cy2 in range(COLS_Y+1):
+                px=f(cx2*bxw); py=f(cy2*byd)
+                msp.add_lwpolyline([(px-CS/2,py-CS/2),(px+CS/2,py-CS/2),
+                                    (px+CS/2,py+CS/2),(px-CS/2,py+CS/2)],
+                                   dxfattribs={'layer':'S-COLS','closed':True})
+                msp.add_text(f"{chr(65+cy2)}{cx2+1}",
+                             dxfattribs={'layer':'A-ANNO-TEXT','height':f(0.5)}
+                ).set_placement((px,py+CS/2+f(0.3)),align=TextEntityAlignment.CENTER)
+        msp.add_text(job_val(self.job,'project_name','Project') + ' – STRUCTURAL FRAMING PLAN',
+                     dxfattribs={'layer':'A-ANNO-BORD','height':f(1.2)}
+        ).set_placement((0,f(bd)+f(3)),align=TextEntityAlignment.LEFT)
+        return self._write(doc)
+
+    def _fire_dxf(self, placed, bw, bd):
+        import ezdxf
+        from ezdxf.enums import TextEntityAlignment
+        doc=self._new_doc('Fire Safety'); msp=doc.modelspace(); f=self._f
+        MAR=1.5
+        msp.add_lwpolyline([(f(MAR),f(MAR)),(f(bw-MAR),f(MAR)),
+                            (f(bw-MAR),f(bd-MAR)),(f(MAR),f(bd-MAR))],
+                           dxfattribs={'layer':'A-WALL','closed':True})
+        for r in placed:
+            rx,ry=r.get('_x',0),r.get('_y',0)
+            rw=r.get('_w',12); rd=r.get('_d',14)
+            msp.add_lwpolyline([(f(rx),f(ry)),(f(rx+rw),f(ry)),
+                                (f(rx+rw),f(ry+rd)),(f(rx),f(ry+rd))],
+                               dxfattribs={'layer':'A-WALL-INTR','closed':True})
+        exits=[(MAR,bd/2,'EXIT 1'),(bw-MAR,bd/2,'EXIT 2'),(bw/2,MAR,'EXIT 3')]
+        for ex2,ey2,lbl in exits:
+            msp.add_text(lbl,dxfattribs={'layer':'FP-EXIT','height':f(1.2)}
+            ).set_placement((f(ex2),f(ey2)),align=TextEntityAlignment.CENTER)
+        for i,(fex,fey) in enumerate([(bw*0.3,bd/2),(bw*0.7,bd/2),(bw/2,bd*0.8)]):
+            msp.add_circle((f(fex),f(fey)),f(0.8),dxfattribs={'layer':'FP-EQUIP'})
+            msp.add_text('FE',dxfattribs={'layer':'FP-EQUIP','height':f(0.6)}
+            ).set_placement((f(fex),f(fey-0.3)),align=TextEntityAlignment.CENTER)
+        msp.add_text(job_val(self.job,'project_name','Project') + ' – FIRE & LIFE SAFETY',
+                     dxfattribs={'layer':'A-ANNO-BORD','height':f(1.2)}
+        ).set_placement((0,f(bd)+f(3)),align=TextEntityAlignment.LEFT)
+        return self._write(doc)
+
+    def _error_dxf(self, title, err):
+        import ezdxf; from ezdxf.enums import TextEntityAlignment
+        doc=ezdxf.new('R2010'); msp=doc.modelspace()
+        msp.add_text(f'{title}: {err[:80]}',dxfattribs={'height':6}
+        ).set_placement((0,0),align=TextEntityAlignment.LEFT)
+        buf=io.StringIO(); doc.write(buf); return buf.getvalue().encode()
+
+
+def job_val(job,key,default=''):
+    return job.get(key) or default
+
+
+# ─────────────────────────────────────────────────────────────────────────
+#  ZIP Package
+# ─────────────────────────────────────────────────────────────────────────
+
+def build_export_package(job: Dict) -> bytes:
+    exporter = PDFExporter(job)
+    pdf = exporter.generate()
     dxf_sheets = DXFExporter(job).generate_all_sheets()
 
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("construction_documents.pdf", pdf_bytes)
-        for fname, dxf_bytes in dxf_sheets.items():
-            zf.writestr(f"sheets/{fname}", dxf_bytes)
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('construction_documents.pdf', pdf)
+        for fname, data in dxf_sheets.items():
+            zf.writestr(f'cad/{fname}', data)
         manifest = {
-            "project_name":    job.get("project_name"),
-            "generated_at":    datetime.utcnow().isoformat(),
-            "engine":          job.get("engine"),
-            "drawing_count":   job.get("drawing_count", len(job.get("drawings",[]))),
-            "compliance":      job.get("compliance_report",{}).get("summary",""),
-            "sheets": [{
-                "sheet_number": d.get("sheet_number"),
-                "title":        d.get("title"),
-                "sheet_type":   d.get("sheet_type"),
-                "discipline":   d.get("discipline",""),
-                "scale":        d.get("scale",""),
-            } for d in job.get("drawings",[])],
+            'project_name':    job.get('project_name',''),
+            'generated':       _now(),
+            'sheet_count':     6,
+            'sheets': [
+                {'number':'G0.0','title':'Cover Sheet'},
+                {'number':'A1.0','title':'Floor Plan – Level 1'},
+                {'number':'A3.0','title':'Exterior Elevations'},
+                {'number':'C2.0','title':'Site Plan'},
+                {'number':'S4.0','title':'Structural Framing Plan'},
+                {'number':'FP5.0','title':'Fire & Life Safety Plan'},
+            ],
+            'compliance': job.get('compliance_report',{}),
         }
-        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+        import json
+        zf.writestr('manifest.json', json.dumps(manifest, indent=2))
     return buf.getvalue()
