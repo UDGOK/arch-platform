@@ -3,343 +3,212 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Architectural AI Platform – NVIDIA NIM</title>
+<title>Architectural AI Platform</title>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0a0d14;--surface:#111520;--surface2:#171d2e;--surface3:#1e2540;
-  --border:#232b42;--border2:#2e3a5a;--border3:#3a4a6e;
-  --accent:#4a9eff;--accent2:#7c5cfc;--accent3:#00d4aa;
-  --nvidia:#76b900;
-  --success:#22c55e;--warn:#f59e0b;--error:#ef4444;--crit:#dc2626;
-  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--text4:#475569;
-  --mono:'JetBrains Mono','Fira Code','Courier New',monospace;
-  --r:8px;--r2:12px;--shadow:0 8px 32px rgba(0,0,0,.6);
+  --bg:#0a0d14;--surf:#111520;--surf2:#171d2e;--surf3:#1e2540;
+  --bdr:#232b42;--bdr2:#2e3a5a;
+  --acc:#4a9eff;--acc2:#7c5cfc;--grn:#22c55e;--warn:#f59e0b;--err:#ef4444;--nv:#76b900;
+  --txt:#e2e8f0;--txt2:#94a3b8;--txt3:#64748b;
+  --mono:'Courier New',monospace;--r:8px;
 }
-html{font-size:14px}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
-
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column}
 /* Header */
-header{background:linear-gradient(135deg,#060c1a 0%,#0a1428 100%);border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0;z-index:100}
-.h-logo{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
-.h-title{font-size:.95rem;font-weight:700;letter-spacing:.02em}
-.h-title span{color:var(--accent)}
-.h-badges{display:flex;gap:6px;margin-left:auto}
-.badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;letter-spacing:.06em}
-.badge-ibc{background:rgba(74,158,255,.12);border:1px solid rgba(74,158,255,.3);color:var(--accent)}
-.badge-nim{background:rgba(118,185,0,.12);border:1px solid rgba(118,185,0,.3);color:var(--nvidia)}
-
+header{background:#060c1a;border-bottom:1px solid var(--bdr);height:52px;display:flex;align-items:center;padding:0 18px;gap:10px;flex-shrink:0}
+.hlogo{width:30px;height:30px;background:linear-gradient(135deg,var(--acc),var(--acc2));border-radius:6px;display:grid;place-items:center;font-size:16px}
+.htitle{font-size:.9rem;font-weight:700}.htitle span{color:var(--acc)}
+.hbadge{margin-left:auto;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:700;background:rgba(74,158,255,.12);border:1px solid rgba(74,158,255,.3);color:var(--acc)}
 /* Layout */
-.layout{display:grid;grid-template-columns:300px 1fr;flex:1;overflow:hidden}
-aside{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.layout{display:grid;grid-template-columns:290px 1fr;flex:1;overflow:hidden}
+aside{background:var(--surf);border-right:1px solid var(--bdr);overflow-y:auto}
 main{display:flex;flex-direction:column;overflow:hidden}
-
-/* Tabs */
-.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
-.tab{flex:1;padding:12px 4px;background:none;border:none;color:var(--text4);cursor:pointer;font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-bottom:2px solid transparent;transition:.15s}
-.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
-.tab:hover:not(.on){color:var(--text2)}
-.pane{display:none;padding:16px;overflow-y:auto;flex:1}
-.pane.on{display:flex;flex-direction:column;gap:10px}
-
+/* Sidebar tabs */
+.stabs{display:flex;border-bottom:1px solid var(--bdr)}
+.stab{flex:1;padding:11px 4px;background:none;border:none;color:var(--txt3);cursor:pointer;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-bottom:2px solid transparent;transition:.15s}
+.stab.on{color:var(--acc);border-bottom-color:var(--acc)}
+.spane{display:none;padding:14px}
+.spane.on{display:flex;flex-direction:column;gap:9px}
 /* Form */
-.fg{display:flex;flex-direction:column;gap:4px}
-.fg label{font-size:.68rem;font-weight:700;color:var(--text3);letter-spacing:.06em;text-transform:uppercase}
-.fg label .req{color:var(--error);margin-left:2px}
+.fg label{display:block;font-size:.67rem;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.fg label .r{color:var(--err);margin-left:2px}
 select,input[type=text],input[type=number],input[type=password],textarea{
-  background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
-  color:var(--text);padding:7px 9px;font-size:.82rem;font-family:inherit;
-  transition:border-color .15s;width:100%;appearance:none
-}
-select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(74,158,255,.12)}
-textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-
-/* Radios */
+  width:100%;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);
+  color:var(--txt);padding:7px 9px;font-size:.82rem;font-family:inherit}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--acc)}
+textarea{resize:vertical;min-height:55px}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* Radio */
 .rg{display:flex;gap:6px}
-.ro{flex:1;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;text-align:center;font-size:.78rem;font-weight:600;transition:.15s;user-select:none}
-.ro:hover{border-color:var(--border2)}
-.ro.on{background:rgba(74,158,255,.12);border-color:var(--accent);color:var(--accent)}
-
+.ro{flex:1;padding:6px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);cursor:pointer;text-align:center;font-size:.78rem;font-weight:600;user-select:none;transition:.15s}
+.ro.on{background:rgba(74,158,255,.12);border-color:var(--acc);color:var(--acc)}
 /* Checkboxes */
 .cg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.ci{display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:.75rem;transition:.15s;user-select:none}
-.ci:hover{border-color:var(--border2)}
+.ci{display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);cursor:pointer;font-size:.74rem;user-select:none}
 .ci.on{background:rgba(74,158,255,.08);border-color:rgba(74,158,255,.35)}
-.ck{width:13px;height:13px;flex-shrink:0;background:var(--surface);border:1.5px solid var(--border2);border-radius:3px;display:grid;place-items:center;font-size:8px;transition:.15s}
-.ci.on .ck{background:var(--accent);border-color:var(--accent);color:#fff}
-
+.ck{width:13px;height:13px;flex-shrink:0;background:var(--surf);border:1.5px solid var(--bdr2);border-radius:3px;display:grid;place-items:center;font-size:8px}
+.ci.on .ck{background:var(--acc);border-color:var(--acc);color:#fff}
 /* Toggle */
-.trow{display:flex;align-items:center;gap:9px;cursor:pointer}
-.tg{width:36px;height:19px;background:var(--border2);border-radius:10px;position:relative;transition:.15s;flex-shrink:0}
-.tg.on{background:var(--accent)}
-.tg::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;background:#fff;border-radius:50%;transition:.15s}
-.tg.on::after{left:19px}
-
-/* Section */
-.sh{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text4);padding-bottom:5px;border-bottom:1px solid var(--border);margin-top:4px}
-
+.trow{display:flex;align-items:center;gap:8px;cursor:pointer}
+.tg{width:34px;height:18px;background:var(--bdr2);border-radius:9px;position:relative;transition:.15s;flex-shrink:0}
+.tg.on{background:var(--acc)}
+.tg::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:.15s}
+.tg.on::after{left:18px}
+/* Section header */
+.sh{font-size:.64rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);padding-bottom:4px;border-bottom:1px solid var(--bdr);margin-top:2px}
+/* Jur info */
+.ji{background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);padding:8px 10px;font-family:var(--mono);font-size:.7rem;color:var(--txt3);line-height:1.9}
+.ji b{color:var(--txt2)}
 /* Quick btns */
 .qrow{display:flex;gap:5px;flex-wrap:wrap}
-.qb{font-size:.7rem;padding:3px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text3);transition:.15s}
-.qb:hover{border-color:var(--accent);color:var(--accent)}
-
-/* Jur info */
-.ji{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:9px 11px;font-family:var(--mono);font-size:.7rem;color:var(--text3);line-height:1.9}
-.ji b{color:var(--text2)}
-.sdc{display:inline-block;padding:1px 5px;border-radius:3px;font-size:.67rem}
-.sdc-ab{background:rgba(34,197,94,.12);color:var(--success)}
-.sdc-c{background:rgba(245,158,11,.12);color:var(--warn)}
-.sdc-def{background:rgba(239,68,68,.12);color:var(--error)}
-
+.qb{font-size:.7rem;padding:3px 8px;background:var(--surf2);border:1px solid var(--bdr);border-radius:4px;cursor:pointer;color:var(--txt3)}
+.qb:hover{border-color:var(--acc);color:var(--acc)}
+/* Upload */
+.uz{border:2px dashed var(--bdr2);border-radius:var(--r);padding:16px;text-align:center;cursor:pointer;position:relative;transition:.2s}
+.uz:hover,.uz.drag{border-color:var(--acc);background:rgba(74,158,255,.04)}
+.uz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 /* Buttons */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:var(--r);font-size:.82rem;font-weight:600;cursor:pointer;border:none;transition:.15s;letter-spacing:.02em;width:100%}
-.btn-nim{background:linear-gradient(135deg,var(--nvidia),#5a8f00);color:#fff;box-shadow:0 2px 14px rgba(118,185,0,.3)}
-.btn-nim:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(118,185,0,.4)}
-.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 2px 12px rgba(74,158,255,.25)}
-.btn-primary:hover{transform:translateY(-1px)}
-.btn-sec{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
-.btn-sec:hover{border-color:var(--accent);color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:var(--r);font-size:.82rem;font-weight:600;cursor:pointer;border:none;transition:.15s;width:100%;margin-bottom:6px}
+.btn-nim{background:linear-gradient(135deg,var(--nv),#5a8f00);color:#fff}
+.btn-nim:hover{opacity:.9;transform:translateY(-1px)}
+.btn-pri{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
+.btn-pri:hover{transform:translateY(-1px)}
+.btn-sec{background:var(--surf2);color:var(--txt2);border:1px solid var(--bdr)}
+.btn-sec:hover{border-color:var(--acc);color:var(--acc)}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
-.btn-sm{padding:6px 12px;font-size:.75rem;width:auto}
-
-/* Upload zone */
-.upload-zone{border:2px dashed var(--border2);border-radius:var(--r2);padding:20px;text-align:center;cursor:pointer;transition:.2s;position:relative}
-.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(74,158,255,.04)}
-.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.uz-icon{font-size:28px;margin-bottom:6px}
-.uz-label{font-size:.8rem;color:var(--text2);font-weight:600}
-.uz-sub{font-size:.7rem;color:var(--text4);margin-top:3px}
-.upload-preview{display:none;border-radius:var(--r);overflow:hidden;border:1px solid var(--border);position:relative}
-.upload-preview img{width:100%;display:block;max-height:180px;object-fit:contain;background:#000}
-.upload-preview .rm{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;color:#fff;font-size:12px;display:grid;place-items:center}
-
-/* Pipeline stages */
-.stages{display:flex;gap:0;margin-bottom:14px;border-radius:var(--r);overflow:hidden;border:1px solid var(--border)}
-.stage{flex:1;padding:8px 6px;text-align:center;font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text4);background:var(--surface2);transition:.3s;border-right:1px solid var(--border)}
-.stage:last-child{border-right:none}
-.stage.active{background:rgba(74,158,255,.12);color:var(--accent)}
-.stage.done{background:rgba(34,197,94,.08);color:var(--success)}
-.stage.error{background:rgba(239,68,68,.08);color:var(--error)}
-.stage-dot{font-size:10px;margin-right:4px}
-
-/* Main results */
-.results-wrap{flex:1;overflow-y:auto;padding:20px}
-.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text4);gap:12px}
-.empty-icon{font-size:52px}
-.empty p{font-size:.85rem;text-align:center;line-height:1.6}
-
-/* Cards */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:18px 20px;margin-bottom:16px}
-.card-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.card-ico{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-size:14px;flex-shrink:0}
-.card-ico.nim-ico{background:linear-gradient(135deg,var(--nvidia),#5a8f00)}
-.card-t{font-size:.88rem;font-weight:700}
-.card-s{font-size:.72rem;color:var(--text3);margin-top:1px}
-
-/* Status */
-.sbadge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.04em}
-.s-ok{background:rgba(34,197,94,.12);color:var(--success);border:1px solid rgba(34,197,94,.25)}
-.s-fail{background:rgba(239,68,68,.12);color:var(--error);border:1px solid rgba(239,68,68,.25)}
-.s-warn{background:rgba(245,158,11,.12);color:var(--warn);border:1px solid rgba(245,158,11,.25)}
-.s-part{background:rgba(118,185,0,.12);color:var(--nvidia);border:1px solid rgba(118,185,0,.25)}
-
-/* Compliance bar */
-.cbar{display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:var(--r);padding:9px 12px;margin-bottom:12px}
-.cbar-sum{flex:1}.cbar-t{font-size:.82rem;font-weight:700}.cbar-s{font-size:.72rem;color:var(--text3)}
-.cbar-nums{display:flex;gap:12px}
-.cn{text-align:center}.cn .n{font-size:1rem;font-weight:700}.cn .l{font-size:.65rem;color:var(--text4)}
-.findings{display:flex;flex-direction:column;gap:7px}
-.fi{border-radius:var(--r);padding:9px 12px;border-left:3px solid;background:var(--surface2)}
-.fi-crit,.fi-critical{border-color:var(--crit)}
-.fi-error{border-color:var(--error)}
-.fi-warning{border-color:var(--warn)}
-.fi-info{border-color:var(--accent)}
-.fi-hdr{display:flex;align-items:center;gap:7px;margin-bottom:3px}
-.sev{font-size:.65rem;font-weight:700;letter-spacing:.06em;padding:2px 5px;border-radius:3px}
-.sev-CRITICAL,.sev-critical{background:rgba(220,38,38,.15);color:#fca5a5}
-.sev-ERROR,.sev-error{background:rgba(239,68,68,.15);color:#fca5a5}
-.sev-WARNING,.sev-warning{background:rgba(245,158,11,.15);color:#fde68a}
-.sev-INFO,.sev-info{background:rgba(74,158,255,.15);color:#93c5fd}
-.fi-rule{font-size:.68rem;color:var(--text4);font-family:var(--mono)}
-.fi-sec{font-size:.78rem;font-weight:600}
-.fi-desc{font-size:.77rem;color:var(--text2);margin-top:2px}
-.fi-rec{font-size:.72rem;color:var(--text4);margin-top:3px}
+/* Main tabs */
+.mtabs{display:flex;background:var(--surf);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.mtab{padding:12px 18px;background:none;border:none;border-bottom:2px solid transparent;color:var(--txt3);cursor:pointer;font-size:.8rem;font-weight:600;transition:.15s}
+.mtab.on{color:var(--acc);border-bottom-color:var(--acc)}
+.mpanel{display:none;flex:1;overflow-y:auto;padding:20px}
+.mpanel.on{display:block}
+/* Results */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--txt3);gap:12px;text-align:center}
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:18px;margin-bottom:14px}
+.chdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cico{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-size:14px;flex-shrink:0}
+.cico.nv{background:linear-gradient(135deg,var(--nv),#4a7000)}
+.ct{font-size:.88rem;font-weight:700}.cs{font-size:.72rem;color:var(--txt3)}
+/* Compliance */
+.cbar{display:flex;align-items:center;gap:10px;background:var(--surf2);border-radius:var(--r);padding:9px 12px;margin-bottom:10px}
+.cbar-s{flex:1}.cbar-t{font-size:.82rem;font-weight:700}.cbar-sub{font-size:.7rem;color:var(--txt3)}
+.cnums{display:flex;gap:12px}.cn{text-align:center}
+.cn .n{font-size:1rem;font-weight:700}.cn .l{font-size:.65rem;color:var(--txt3)}
+.finds{display:flex;flex-direction:column;gap:7px}
+.fi{border-radius:var(--r);padding:9px 12px;border-left:3px solid;background:var(--surf2)}
+.fi-WARNING{border-color:var(--warn)}.fi-ERROR,.fi-CRITICAL{border-color:var(--err)}.fi-INFO{border-color:var(--acc)}
+.sev{font-size:.65rem;font-weight:700;padding:2px 5px;border-radius:3px;margin-right:6px}
+.sev-WARNING{background:rgba(245,158,11,.15);color:#fde68a}
+.sev-ERROR,.sev-CRITICAL{background:rgba(239,68,68,.15);color:#fca5a5}
+.sev-INFO{background:rgba(74,158,255,.15);color:#93c5fd}
+.fi-sec{font-size:.78rem;font-weight:600;margin-bottom:2px}
+.fi-desc{font-size:.77rem;color:var(--txt2)}
+.fi-rec{font-size:.72rem;color:var(--txt3);margin-top:3px}
 .fi-rec::before{content:'→ '}
-
-/* Drawing grid */
-.dg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-.dc{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .15s}
-.dc:hover{border-color:var(--border3)}
-.dc-img{width:100%;height:140px;object-fit:cover;display:block;background:var(--surface3);cursor:pointer}
-.dc-img-placeholder{width:100%;height:140px;background:linear-gradient(135deg,var(--surface3),var(--surface2));display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text4);font-size:.72rem;gap:6px}
-.dc-body{padding:10px 12px}
-.dc-num{font-family:var(--mono);font-size:.72rem;color:var(--accent);font-weight:700}
-.dc-title{font-size:.8rem;font-weight:600;margin:3px 0 2px}
-.dc-type{font-size:.68rem;color:var(--text4)}
-.dc-meta{margin-top:8px;display:flex;flex-direction:column;gap:3px}
-.dc-note{font-size:.68rem;color:var(--text3);padding:2px 0;border-top:1px solid var(--border);padding-top:5px}
-.dc-note:first-child{border-top:none;padding-top:0}
-.dc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.tag{font-size:.65rem;padding:2px 6px;border-radius:3px;background:rgba(74,158,255,.08);color:var(--accent);font-family:var(--mono)}
-.tag-green{background:rgba(34,197,94,.08);color:var(--success)}
-.dc-actions{padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:6px}
-
-/* Vision panel */
-.vision-panel{background:var(--surface2);border:1px solid var(--border3);border-radius:var(--r);padding:12px 14px;margin-bottom:12px}
-.vp-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.8rem;font-weight:700}
-.vp-body{font-family:var(--mono);font-size:.72rem;color:var(--text2);line-height:1.8;white-space:pre-wrap;word-break:break-word}
-
-/* Stage timings */
-.timings{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-.timing{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:.68rem;font-family:var(--mono)}
-.timing .n{color:var(--nvidia);font-weight:700}
-
-/* Chat panel */
-.chat-panel{border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-top:16px}
-.chat-hdr{background:linear-gradient(135deg,rgba(118,185,0,.1),rgba(74,158,255,.1));border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:8px;font-size:.8rem;font-weight:700}
-.chat-body{height:200px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
-.msg{max-width:85%;padding:8px 11px;border-radius:var(--r);font-size:.78rem;line-height:1.6}
-.msg-user{align-self:flex-end;background:rgba(74,158,255,.15);border:1px solid rgba(74,158,255,.25);color:var(--text)}
-.msg-ai{align-self:flex-start;background:var(--surface2);border:1px solid var(--border2);color:var(--text2)}
-.chat-input{display:flex;border-top:1px solid var(--border);background:var(--surface2)}
-.chat-input input{flex:1;background:none;border:none;padding:10px 12px;font-size:.8rem;color:var(--text);font-family:inherit}
-.chat-input input:focus{outline:none}
-.chat-input button{padding:10px 14px;background:linear-gradient(135deg,var(--nvidia),#5a8f00);border:none;color:#fff;cursor:pointer;font-size:.8rem;font-weight:700;transition:.15s}
-.chat-input button:hover{opacity:.9}
-.chat-sel{background:var(--surface3);border-bottom:1px solid var(--border);padding:6px 12px;font-size:.72rem;color:var(--text3);font-family:var(--mono)}
-
-/* Image modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;display:none;align-items:center;justify-content:center;padding:20px}
-.modal-overlay.on{display:flex}
-.modal-img{max-width:90vw;max-height:85vh;border-radius:var(--r2);box-shadow:var(--shadow)}
-.modal-close{position:fixed;top:16px;right:20px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:grid;place-items:center}
-
-/* Loader & progress */
-.loader{display:none;align-items:center;gap:8px;font-size:.8rem;color:var(--text2);padding:6px 0}
-.loader.on{display:flex}
-.spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--nvidia);border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.prog-track{height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:none;margin-top:6px}
-.prog-track.on{display:block}
-.prog-fill{height:100%;width:0;background:linear-gradient(90deg,var(--nvidia),var(--accent));border-radius:2px;transition:width .3s}
-
-/* Log */
-.log{background:#06090f;border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:.7rem;line-height:1.9;max-height:150px;overflow-y:auto;color:var(--text3)}
-.le{display:flex;gap:8px}
-.lt{color:var(--text4);flex-shrink:0}
-.li{color:var(--accent)}.ls{color:var(--success)}.lw{color:var(--warn)}.le2{color:var(--error)}.ln{color:var(--nvidia)}
-
-/* Toast */
-.toasts{position:fixed;bottom:18px;right:18px;z-index:998;display:flex;flex-direction:column;gap:7px}
-.toast{padding:9px 14px;border-radius:var(--r);font-size:.8rem;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow);animation:tslide .2s ease;max-width:360px}
-.toast-ok{background:#052e16;border:1px solid var(--success);color:#86efac}
-.toast-err{background:#2a0505;border:1px solid var(--error);color:#fca5a5}
-.toast-info{background:#061028;border:1px solid var(--accent);color:#93c5fd}
-.toast-nim{background:#0f1a00;border:1px solid var(--nvidia);color:#a3c74a}
-@keyframes tslide{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
-
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
-
+/* Sheets grid */
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.sc{background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);padding:11px 13px}
+.snum{font-family:var(--mono);font-size:.72rem;color:var(--acc);font-weight:700}
+.stit{font-size:.8rem;font-weight:600;margin:3px 0 2px}
+.stype{font-size:.7rem;color:var(--txt3)}
+.stag{display:inline-block;margin-top:5px;font-size:.67rem;padding:2px 6px;border-radius:3px;background:rgba(74,158,255,.08);color:var(--acc);font-family:var(--mono)}
 /* Export bar */
-.export-bar{display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,rgba(118,185,0,.08),rgba(74,158,255,.08));border:1px solid var(--border2);border-radius:var(--r2);padding:12px 16px;margin-bottom:16px;flex-wrap:wrap}
-.export-bar-title{font-size:.8rem;font-weight:700;flex:1;min-width:120px}
-.btn-export{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r);font-size:.76rem;font-weight:700;cursor:pointer;border:none;transition:.15s;letter-spacing:.02em}
-.btn-pdf{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3)}
-.btn-pdf:hover{background:rgba(239,68,68,.25)}
-.btn-dxf{background:rgba(74,158,255,.12);color:var(--accent);border:1px solid rgba(74,158,255,.3)}
-.btn-dxf:hover{background:rgba(74,158,255,.22)}
-.btn-zip{background:linear-gradient(135deg,rgba(118,185,0,.15),rgba(74,158,255,.12));color:var(--nvidia);border:1px solid rgba(118,185,0,.3)}
-.btn-zip:hover{transform:translateY(-1px);box-shadow:0 3px 12px rgba(118,185,0,.2)}
-.export-spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.2);border-top-color:currentColor;border-radius:50%;animation:spin .6s linear infinite;display:none}
-.exporting .export-spin{display:inline-block}
-
-/* Multi-format upload */
-.upload-panel{border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
-.upload-tabs{display:flex;background:var(--surface2);border-bottom:1px solid var(--border)}
-.upload-tab{flex:1;padding:7px 3px;background:none;border:none;color:var(--text4);cursor:pointer;font-size:.62rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid transparent;transition:.15s}
-.upload-tab.on{color:var(--accent);border-bottom-color:var(--accent);background:rgba(74,158,255,.06)}
-.upload-body{padding:10px}
-.upload-hint{font-size:.68rem;color:var(--text4);text-align:center;padding:3px 0 5px}
-.fmt-badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:.67rem;font-weight:700;font-family:var(--mono)}
-.fmt-dxf,.fmt-dwg{background:rgba(74,158,255,.12);color:var(--accent)}
-.fmt-pdf{background:rgba(239,68,68,.12);color:#fca5a5}
-.fmt-ifc{background:rgba(34,197,94,.12);color:var(--success)}
-.fmt-rvt{background:rgba(245,158,11,.12);color:var(--warn)}
-.parse-result{background:var(--surface2);border:1px solid var(--border3);border-radius:var(--r);padding:8px 10px;font-size:.72rem;line-height:1.85}
-.parse-row{display:flex;gap:6px;align-items:baseline}
-.parse-key{color:var(--text4);font-family:var(--mono);font-size:.66rem;min-width:60px}
-.parse-val{color:var(--text2)}
-.parse-rooms{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
-.room-tag{background:rgba(74,158,255,.07);border:1px solid rgba(74,158,255,.18);border-radius:3px;padding:1px 5px;font-size:.64rem;color:var(--text3)}
-.parse-preview{width:100%;border-radius:var(--r);margin-top:7px;cursor:pointer;border:1px solid var(--border);display:block}
-.rvt-note{background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);padding:7px 9px;font-size:.7rem;color:var(--warn);line-height:1.65;margin-top:6px}
-
-/* Floor plan generator */
-.fp-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:20px}
-.fp-svg-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:auto;max-height:70vh;margin-top:16px;text-align:center;padding:16px}
-.fp-svg-wrap svg{max-width:100%;height:auto}
-.fp-rooms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:12px}
-.fp-room-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px}
-.fp-room-name{font-size:.78rem;font-weight:700}
-.fp-room-meta{font-size:.7rem;color:var(--text4);margin-top:2px}
-.fp-room-sf{font-size:.72rem;color:var(--accent);font-weight:700}
-.fp-stats{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
-.fp-stat{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 14px;text-align:center}
-.fp-stat .n{font-size:1.1rem;font-weight:700;color:var(--accent)}
-.fp-stat .l{font-size:.68rem;color:var(--text4)}
-.gen-btn{background:linear-gradient(135deg,#1a3a5c,#0f2040);border:1px solid var(--accent);color:var(--accent);padding:10px 20px;border-radius:var(--r);font-size:.85rem;font-weight:700;cursor:pointer;transition:.15s;width:100%;margin-top:8px}
-.gen-btn:hover{background:rgba(74,158,255,.15)}
-.gen-btn:disabled{opacity:.4;cursor:not-allowed}
+.ebar{display:flex;align-items:center;gap:8px;background:var(--surf2);border:1px solid var(--bdr2);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;flex-wrap:wrap}
+.ebar-t{font-size:.78rem;font-weight:700;flex:1}
+.ebtn{padding:6px 13px;border-radius:var(--r);font-size:.74rem;font-weight:700;cursor:pointer;border:none;transition:.15s}
+.eb-pdf{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.3)}
+.eb-dxf{background:rgba(74,158,255,.1);color:var(--acc);border:1px solid rgba(74,158,255,.3)}
+.eb-zip{background:rgba(118,185,0,.1);color:var(--nv);border:1px solid rgba(118,185,0,.3)}
+/* Floor plan */
+.fp-svg{background:#fff;border:1px solid var(--bdr);border-radius:var(--r);overflow:auto;max-height:70vh;padding:12px;text-align:center;margin-top:12px}
+.fp-svg svg{max-width:100%;height:auto}
+.fp-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}
+.frc{background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);padding:8px 10px}
+.frn{font-size:.78rem;font-weight:700}.frsf{font-size:.72rem;color:var(--acc);font-weight:700;margin-top:2px}.frm{font-size:.68rem;color:var(--txt3)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.stat{background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);padding:8px 14px;text-align:center}
+.stat .n{font-size:1rem;font-weight:700;color:var(--acc)}.stat .l{font-size:.66rem;color:var(--txt3)}
+/* Status badge */
+.sb{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;margin-left:auto}
+.sb-ok{background:rgba(34,197,94,.12);color:var(--grn);border:1px solid rgba(34,197,94,.25)}
+.sb-fail{background:rgba(239,68,68,.12);color:var(--err);border:1px solid rgba(239,68,68,.25)}
+.sb-part{background:rgba(118,185,0,.12);color:var(--nv);border:1px solid rgba(118,185,0,.25)}
+/* Progress */
+.prog{height:3px;background:var(--bdr);border-radius:2px;overflow:hidden;display:none;margin-top:6px}
+.prog.on{display:block}
+.prog-f{height:100%;width:0;background:linear-gradient(90deg,var(--nv),var(--acc));border-radius:2px;transition:width .3s}
+.loader{display:none;align-items:center;gap:8px;font-size:.78rem;color:var(--txt2);margin-top:6px}
+.loader.on{display:flex}
+.spin{width:15px;height:15px;border:2px solid var(--bdr);border-top-color:var(--nv);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Log */
+.log{background:#06090f;border:1px solid var(--bdr);border-radius:var(--r);padding:9px 11px;font-family:var(--mono);font-size:.68rem;line-height:1.9;max-height:140px;overflow-y:auto;color:var(--txt3);margin-top:8px}
+/* Toasts */
+.toasts{position:fixed;bottom:16px;right:16px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toast{padding:9px 13px;border-radius:var(--r);font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:7px;animation:tslide .2s ease;max-width:340px}
+.tok{background:#052e16;border:1px solid var(--grn);color:#86efac}
+.terr{background:#2a0505;border:1px solid var(--err);color:#fca5a5}
+.tinfo{background:#061028;border:1px solid var(--acc);color:#93c5fd}
+.tnim{background:#0f1a00;border:1px solid var(--nv);color:#a3c74a}
+@keyframes tslide{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+/* Chat */
+.chat-panel{border:1px solid var(--bdr);border-radius:12px;overflow:hidden;margin:0 20px 16px;flex-shrink:0}
+.chat-hdr{background:var(--surf);border-bottom:1px solid var(--bdr);padding:9px 14px;font-size:.8rem;font-weight:700;display:flex;align-items:center;gap:8px}
+.chat-sel-row{background:var(--surf2);border-bottom:1px solid var(--bdr);padding:6px 14px;display:flex;align-items:center;gap:8px}
+.chat-body{height:180px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:7px;background:var(--surf)}
+.msg{max-width:85%;padding:8px 11px;border-radius:var(--r);font-size:.77rem;line-height:1.6}
+.mu{align-self:flex-end;background:rgba(74,158,255,.14);border:1px solid rgba(74,158,255,.25)}
+.ma{align-self:flex-start;background:var(--surf2);border:1px solid var(--bdr2);color:var(--txt2)}
+.chat-inp{display:flex;border-top:1px solid var(--bdr);background:var(--surf2)}
+.chat-inp input{flex:1;background:none;border:none;padding:9px 12px;font-size:.78rem;color:var(--txt);font-family:inherit}
+.chat-inp input:focus{outline:none}
+.chat-inp button{padding:9px 14px;background:linear-gradient(135deg,var(--nv),#4a7000);border:none;color:#fff;cursor:pointer;font-size:.78rem;font-weight:700}
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:998;display:none;align-items:center;justify-content:center;padding:20px}
+.modal.on{display:flex}
+.modal img{max-width:90vw;max-height:85vh;border-radius:12px}
+.modal-x{position:fixed;top:14px;right:18px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;width:34px;height:34px;border-radius:50%;cursor:pointer;display:grid;place-items:center}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="h-logo">🏗</div>
-  <div class="h-title">Architectural <span>AI</span> Platform</div>
-  <div class="h-badges">
-    <span class="badge badge-ibc">IBC 2023</span>
-    <span class="badge badge-nim">⚡ NVIDIA NIM</span>
-  </div>
+  <div class="hlogo">🏗</div>
+  <div class="htitle">Architectural <span>AI</span> Platform</div>
+  <div class="hbadge">IBC 2023 · NVIDIA NIM</div>
 </header>
 
 <div class="layout">
 
 <!-- SIDEBAR -->
 <aside>
-  <div class="tabs">
-    <button class="tab on" onclick="sideTab('project',this)">Project</button>
-    <button class="tab"    onclick="sideTab('code',this)">Code</button>
-    <button class="tab"    onclick="sideTab('engine',this)">Engine</button>
+  <div class="stabs">
+    <button class="stab on" id="stab-project" onclick="stab('project')">Project</button>
+    <button class="stab" id="stab-code"    onclick="stab('code')">Code</button>
+    <button class="stab" id="stab-engine"  onclick="stab('engine')">Engine</button>
   </div>
 
-  <!-- Project tab -->
-  <div class="pane on" id="pane-project">
+  <!-- Project -->
+  <div class="spane on" id="spane-project">
     <div class="sh">Project</div>
-    <div class="fg"><label>Name <span class="req">*</span></label>
+    <div class="fg"><label>Name <span class="r">*</span></label>
       <input type="text" id="projName" value="Corporate HQ – Phase 1"/>
     </div>
-
-    <div class="sh">Building Classification</div>
-    <div class="fg"><label>Type <span class="req">*</span></label>
-      <div class="rg" id="btg">
-        <div class="ro on" data-v="Commercial" onclick="pickRadio('btg',this)">Commercial</div>
-        <div class="ro"    data-v="Residential" onclick="pickRadio('btg',this)">Residential</div>
-      </div>
+    <div class="sh">Building Type</div>
+    <div class="rg" id="btg">
+      <div class="ro on" data-v="Commercial" onclick="pickRo('btg',this)">Commercial</div>
+      <div class="ro"    data-v="Residential" onclick="pickRo('btg',this)">Residential</div>
     </div>
     <div class="fg"><label>Occupancy Group</label><select id="og"></select></div>
     <div class="fg"><label>Construction Type</label><select id="ct"></select></div>
-
     <div class="sh">Jurisdiction</div>
     <div class="fg"><label>Preset</label><select id="jur" onchange="onJur()"></select></div>
     <div class="ji" id="jurInfo">Loading…</div>
-
     <div class="sh">Parameters</div>
     <div class="fg"><label>Gross Area (sq ft)</label><input type="number" id="sqft" placeholder="e.g. 25000"/></div>
-    <div class="row2">
+    <div class="r2">
       <div class="fg"><label>Stories</label><input type="number" id="stories" placeholder="3"/></div>
       <div class="fg"><label>Height (ft)</label><input type="number" id="height" placeholder="45" step="0.5"/></div>
     </div>
@@ -350,282 +219,275 @@ textarea{resize:vertical;min-height:55px;font-family:var(--mono)}
         <span id="spLbl" style="font-size:.8rem">Not Sprinklered</span>
       </div>
     </div>
-
-    <!-- Multi-format Drawing Upload -->
-    <div class="sh">Upload Drawing File</div>
-    <div class="upload-panel">
-      <div class="upload-tabs">
-        <button class="upload-tab on" onclick="setUploadTab('dwg',this)">DWG/DXF</button>
-        <button class="upload-tab" onclick="setUploadTab('pdf',this)">PDF</button>
-        <button class="upload-tab" onclick="setUploadTab('ifc',this)">IFC</button>
-        <button class="upload-tab" onclick="setUploadTab('rvt',this)">RVT</button>
-      </div>
-      <div class="upload-body">
-        <div id="upload-hint-dwg" class="upload-hint">AutoCAD DWG/DXF · layers, rooms, dims, PNG preview</div>
-        <div id="upload-hint-pdf" class="upload-hint" style="display:none">PDF drawing set · text + page preview</div>
-        <div id="upload-hint-ifc" class="upload-hint" style="display:none">IFC BIM · spaces, storeys, structural</div>
-        <div id="upload-hint-rvt" class="upload-hint" style="display:none">Revit file · APS credentials or export IFC</div>
-        <div class="upload-zone" id="dropzone" ondragover="doDrag(event,true)" ondragleave="doDrag(event,false)" ondrop="doDrop(event)">
-          <input type="file" id="fileInput" accept=".dwg,.dxf,.pdf,.ifc,.rvt,image/jpeg,image/png" onchange="onFile(this)"/>
-          <div class="uz-icon" id="uploadIcon">📐</div>
-          <div class="uz-label">Drop file or click to browse</div>
-          <div class="uz-sub">DWG · DXF · PDF · IFC · RVT · max 100 MB</div>
-        </div>
-        <div id="rvtNote" class="rvt-note" style="display:none">
-          ⚠ Full RVT parsing needs APS credentials (free at aps.autodesk.com)<br>
-          Or: <strong>Revit → File → Export → IFC</strong> then upload the .ifc
-        </div>
-        <div id="apsFields" style="display:none;margin-top:8px;display:none">
-          <input type="text" id="apsClientId" placeholder="APS Client ID (optional)" style="margin-bottom:5px"/>
-          <input type="password" id="apsClientSecret" placeholder="APS Client Secret (optional)"/>
-        </div>
-        <div id="uploadStatus" style="font-size:.72rem;color:var(--text4);margin-top:5px"></div>
-        <div id="parseResult" class="parse-result" style="display:none"></div>
-      </div>
+    <div class="sh">Upload Drawing (optional)</div>
+    <div class="uz" ondragover="event.preventDefault()" ondrop="onDrop(event)">
+      <input type="file" accept=".dwg,.dxf,.pdf,.ifc,.rvt,image/*" onchange="onFile(this)"/>
+      <div style="font-size:24px">📐</div>
+      <div style="font-size:.78rem;color:var(--txt2);margin-top:4px">Drop DWG · DXF · PDF · IFC · RVT</div>
+      <div style="font-size:.68rem;color:var(--txt3);margin-top:2px">max 100 MB</div>
     </div>
+    <div id="upStatus" style="font-size:.7rem;color:var(--txt3)"></div>
   </div>
 
-  <!-- Code tab -->
-  <div class="pane" id="pane-code">
+  <!-- Code -->
+  <div class="spane" id="spane-code">
     <div class="sh">Primary Code</div>
-    <div class="fg"><label>Code Version <span class="req">*</span></label><select id="code"></select></div>
+    <div class="fg"><label>Code Version</label><select id="code"></select></div>
     <div class="fg"><label>Accessibility Standard</label>
       <input type="text" id="acc" value="ADA / ICC A117.1-2017"/>
     </div>
-
-    <div class="sh">Drawing Sets <span class="req" style="font-size:.7rem">*</span></div>
-    <div class="qrow">
+    <div class="sh">Drawing Sets</div>
+    <div class="qrow" style="margin-bottom:6px">
       <button class="qb" onclick="allDraw(true)">All</button>
       <button class="qb" onclick="allDraw(false)">Clear</button>
       <button class="qb" onclick="fullSet()">Full Set</button>
     </div>
-    <div class="cg" id="drawGrid" style="margin-top:6px"></div>
-
+    <div class="cg" id="drawGrid"></div>
     <div class="sh" style="margin-top:8px">Notes</div>
     <textarea id="notes" rows="3" placeholder="Scope notes…"></textarea>
   </div>
 
-  <!-- Engine tab -->
-  <div class="pane" id="pane-engine">
+  <!-- Engine -->
+  <div class="spane" id="spane-engine">
     <div class="sh">AI Engine</div>
     <div class="fg"><label>Provider</label><select id="engProv" onchange="onEng()"></select></div>
     <div class="fg"><label>API Key</label>
       <input type="password" id="apiKey" placeholder="Leave blank for Mock engine"/>
     </div>
-    <div id="engDesc" style="font-size:.72rem;color:var(--text4);margin-bottom:4px"></div>
-
-    <div class="fg" id="nimOpts" style="display:none">
-      <label>Generate Drawing Images</label>
-      <div class="trow" onclick="toggleImgGen()">
-        <div class="tg on" id="imgGenTg"></div>
-        <span id="imgGenLbl" style="font-size:.8rem">Image generation ON (Stage 3)</span>
-      </div>
-    </div>
-
+    <div id="engDesc" style="font-size:.7rem;color:var(--txt3);margin-bottom:4px"></div>
     <div class="sh">Actions</div>
-
-    <!-- NIM pipeline stages display -->
-    <div class="stages" id="stageBar">
-      <div class="stage" id="st1"><span class="stage-dot">①</span>Vision</div>
-      <div class="stage" id="st2"><span class="stage-dot">②</span>Manifest</div>
-      <div class="stage" id="st3"><span class="stage-dot">③</span>Images</div>
-    </div>
-
-    <button class="btn btn-sec" onclick="runValidate()" style="margin-bottom:7px">✓  Compliance Check Only</button>
-    <button class="btn btn-nim" id="btnNim" onclick="runNIM()" style="margin-bottom:7px">⚡  Generate with NVIDIA NIM</button>
-    <button class="btn btn-primary" id="btnGen" onclick="runDispatch()">▶  Generate (Mock / Other)</button>
-
-    <div class="prog-track" id="progTrack"><div class="prog-fill" id="progFill"></div></div>
-    <div class="loader" id="loader"><div class="spin"></div><span id="loaderMsg">Processing…</span></div>
-
-    <div class="sh" style="margin-top:10px">Log</div>
+    <button class="btn btn-sec"  onclick="runValidate()">✓  Compliance Check Only</button>
+    <button class="btn btn-nim"  onclick="runNIM()">⚡  Generate with NVIDIA NIM</button>
+    <button class="btn btn-pri"  id="btnGen" onclick="runDispatch()">▶  Generate (Mock / Other)</button>
+    <div class="prog" id="prog"><div class="prog-f" id="progF"></div></div>
+    <div class="loader" id="ldr"><div class="spin"></div><span id="ldrMsg">Processing…</span></div>
     <div class="log" id="log"></div>
   </div>
 </aside>
 
-<!-- MAIN RESULTS -->
+<!-- MAIN -->
 <main>
-  <!-- Main tab bar -->
-  <div style="display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
-    <button class="tab on" onclick="mainTab('results',this)" style="flex:none;padding:12px 20px">📐 Results</button>
-    <button class="tab" onclick="mainTab('floorplan',this)" style="flex:none;padding:12px 20px">🏗 Floor Plan Generator</button>
+  <div class="mtabs">
+    <button class="mtab on" id="mtab-results"   onclick="mtab('results')">📐 Results</button>
+    <button class="mtab"    id="mtab-floorplan" onclick="mtab('floorplan')">🏗 Floor Plan Generator</button>
   </div>
 
-  <!-- Results panel -->
-  <div id="mainPanel-results" class="results-wrap" style="flex:1;overflow-y:auto;padding:20px">
+  <div class="mpanel on" id="mpanel-results">
     <div class="empty" id="emptyState">
-      <div class="empty-icon">📐</div>
-      <p>Configure your project in the sidebar,<br>then click <strong>Generate with NVIDIA NIM</strong><br>to run the 3-stage AI pipeline.</p>
+      <div style="font-size:48px">📐</div>
+      <p>Configure your project in the sidebar<br>then click <strong>Generate</strong></p>
     </div>
   </div>
 
-  <!-- Floor Plan Generator panel -->
-  <div id="mainPanel-floorplan" style="display:none;flex:1;overflow-y:auto;padding:20px">
-    <div class="fp-panel">
-      <div class="card-hdr" style="margin-bottom:14px">
-        <div class="card-ico nim-ico">🏗</div>
-        <div>
-          <div class="card-t">Floor Plan Generator</div>
-          <div class="card-s">Describe any building → get a real dimensioned 2D floor plan + DXF</div>
+  <div class="mpanel" id="mpanel-floorplan">
+    <div class="card">
+      <div class="chdr">
+        <div class="cico nv">🏗</div>
+        <div><div class="ct">Floor Plan Generator</div>
+          <div class="cs">Text description → real dimensioned 2D floor plan + DXF</div></div>
+      </div>
+      <div class="fg"><label>Describe your floor plan <span class="r">*</span></label>
+        <textarea id="fpDesc" rows="4" placeholder="e.g. 3 private offices 12x14, open office 40x30, conference room 18x20, lobby, 2 restrooms, corridor, 5000 sq ft&#10;or: 3 bedroom 2 bathroom house, master bedroom 14x16, open plan kitchen/living, 2000 sq ft"></textarea>
+      </div>
+      <div class="r2" style="margin-top:8px">
+        <div class="fg"><label>Project Name</label><input type="text" id="fpName" value="My Project"/></div>
+        <div class="fg"><label>Code</label>
+          <select id="fpCode"><option>IBC 2023</option><option>CBC 2022</option><option>IBC 2021</option></select>
         </div>
       </div>
-
-      <div class="fg">
-        <label>Describe your floor plan <span class="req">*</span></label>
-        <textarea id="fpDesc" rows="4" placeholder="e.g. 3 private offices 12x14, 1 open office 40x30, conference room 18x20, lobby, 2 restrooms, corridor, 5000 sq ft&#10;or: 3 bedroom 2 bathroom house, master bedroom 14x16, open plan kitchen/living, 2000 sq ft"></textarea>
-      </div>
-      <div class="row2" style="margin-top:8px">
-        <div class="fg"><label>Project Name</label>
-          <input type="text" id="fpName" value="My Project"/></div>
-        <div class="fg"><label>Code</label>
-          <select id="fpCode"><option>IBC 2023</option><option>CBC 2022</option><option>IBC 2021</option></select></div>
-      </div>
-      <div class="row2">
+      <div class="r2">
         <div class="fg"><label>Building Type</label>
           <div class="rg" id="fpBtg">
-            <div class="ro on" data-v="Commercial" onclick="pickRadio('fpBtg',this)">Commercial</div>
-            <div class="ro" data-v="Residential" onclick="pickRadio('fpBtg',this)">Residential</div>
+            <div class="ro on" data-v="Commercial" onclick="pickRo('fpBtg',this)">Commercial</div>
+            <div class="ro" data-v="Residential"  onclick="pickRo('fpBtg',this)">Residential</div>
           </div>
         </div>
-        <div class="fg"><label>Jurisdiction</label>
-          <input type="text" id="fpJur" placeholder="e.g. Chicago, IL"/></div>
+        <div class="fg"><label>Jurisdiction</label><input type="text" id="fpJur" placeholder="e.g. Chicago, IL"/></div>
       </div>
-      <div class="fg" style="margin-top:4px">
-        <label>NVIDIA API Key <span style="font-weight:400;color:var(--text4)">(for LLM parsing — optional, uses keyword fallback if blank)</span></label>
-        <input type="password" id="fpKey" placeholder="nvapi-… (uses keyword parser if blank)"/>
+      <div class="fg">
+        <label>NVIDIA API Key <span style="font-weight:400;color:var(--txt3)">(optional – uses keyword parser if blank)</span></label>
+        <input type="password" id="fpKey" placeholder="nvapi-…"/>
       </div>
-      <button class="gen-btn" id="fpBtn" onclick="generateFloorPlan()">⚡ Generate Floor Plan</button>
-      <div id="fpStatus" style="font-size:.75rem;color:var(--text3);margin-top:6px;text-align:center"></div>
+      <button class="btn btn-nim" id="fpBtn" onclick="genFP()" style="margin-top:6px">⚡ Generate Floor Plan</button>
+      <div id="fpStatus" style="font-size:.73rem;color:var(--txt3);margin-top:5px;text-align:center"></div>
     </div>
-
-    <div id="fpResult" style="display:none;margin-top:16px">
-      <div class="fp-stats" id="fpStats"></div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="btn-export btn-pdf" id="fpDlSvg" onclick="downloadFpSvg()" style="padding:7px 16px">⬇ Download SVG</button>
-        <button class="btn-export btn-dxf" id="fpDlDxf" onclick="downloadFpDxf()" style="padding:7px 16px">⬇ Download DXF</button>
+    <div id="fpResult" style="display:none">
+      <div class="stats" id="fpStats"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="ebtn eb-pdf" onclick="dlFpSvg()">⬇ SVG</button>
+        <button class="ebtn eb-dxf" onclick="dlFpDxf()">⬇ DXF</button>
       </div>
-      <div class="fp-svg-wrap" id="fpSvgWrap"></div>
-      <div class="fp-rooms-grid" id="fpRoomsGrid"></div>
+      <div class="fp-svg" id="fpSvg"></div>
+      <div class="fp-rooms" id="fpRooms"></div>
     </div>
   </div>
 
-  <!-- Chat Refinement (hidden until drawings exist) -->
-  <div id="chatSection" style="display:none;flex-shrink:0;border-top:1px solid var(--border)">
-    <div class="chat-panel" style="border-radius:0;border:none;border-top:none">
+  <!-- Chat (shown after generation) -->
+  <div id="chatSection" style="display:none;flex-shrink:0;border-top:1px solid var(--bdr)">
+    <div class="chat-panel" style="border-radius:0;border:none">
       <div class="chat-hdr">
-        <span>💬</span> Conversational Refinement
-        <span style="font-size:.72rem;color:var(--text4);margin-left:6px;font-weight:400">Powered by Llama 3.1 70B</span>
-        <span id="chatKeyNotice" style="margin-left:auto;font-size:.68rem;color:var(--warn);display:none">⚠ Add NVIDIA API key in Engine tab</span>
+        💬 Conversational Refinement
+        <span style="font-size:.68rem;color:var(--txt3);font-weight:400;margin-left:4px">Llama 3.1 70B</span>
       </div>
-      <div style="background:var(--surface2);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:8px">
-        <span style="font-size:.7rem;color:var(--text4);white-space:nowrap">Active sheet:</span>
-        <select id="sheetSelect" style="flex:1;background:var(--surface3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 8px;font-size:.75rem;font-family:var(--mono)" onchange="selectSheet(parseInt(this.value))"></select>
+      <div class="chat-sel-row">
+        <span style="font-size:.69rem;color:var(--txt3)">Sheet:</span>
+        <select id="sheetSel" style="flex:1;background:var(--surf3);border:1px solid var(--bdr);color:var(--txt);border-radius:5px;padding:3px 8px;font-size:.74rem" onchange="selSheet(parseInt(this.value))"></select>
       </div>
       <div class="chat-body" id="chatBody"></div>
-      <div class="chat-input">
-        <input id="chatIn" placeholder="e.g. Add ADA restroom notes, increase egress width…" onkeydown="if(event.key==='Enter')sendChat()"/>
+      <div class="chat-inp">
+        <input id="chatIn" placeholder="e.g. Add ADA notes, update egress width to 44 inches…" onkeydown="if(event.key==='Enter')sendChat()"/>
         <button onclick="sendChat()">Send</button>
       </div>
     </div>
   </div>
 </main>
-
 </div>
 
-<!-- Image Modal -->
-<div class="modal-overlay" id="imgModal" onclick="closeModal()">
-  <button class="modal-close" onclick="closeModal()">✕</button>
-  <img class="modal-img" id="modalImg" src="" alt="Drawing"/>
+<div class="modal" id="modal" onclick="this.classList.remove('on')">
+  <button class="modal-x">✕</button>
+  <img id="modalImg" src="" alt=""/>
 </div>
-
 <div class="toasts" id="toasts"></div>
 
 <script>
+"use strict";
+// ── State ─────────────────────────────────────────────────────────────────
 const API = '';
-let META = {}, sprinklered = false, imgGenOn = true;
-let uploadedB64 = '', uploadedType = 'image/jpeg';
+let META = {};
+let sprinklered = false;
+let imgGenOn = true;
+let uploadedB64 = '';
+let uploadedType = 'image/jpeg';
 let selectedDrawings = new Set(['Floor Plan','Exterior Elevations','Site Plan']);
-let lastDrawings = [], lastJob = null, chatHistory = [], currentSheetIdx = 0;
+let lastDrawings = [];
+let lastJob = null;
+let chatHistory = [];
+let currentSheet = 0;
+let fpData = null;
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    META = await (await fetch(`${API}/api/meta`)).json();
-  } catch { META = FALLBACK_META; }
+    const r = await fetch(API + '/api/meta');
+    META = await r.json();
+  } catch(e) {
+    META = FALLBACK;
+    log('API offline – using fallback data','w');
+  }
   populateMeta();
-  log('Platform ready · NVIDIA NIM integration active', 'n');
+  log('Platform ready','n');
 }
 
-// ── Populate UI ───────────────────────────────────────────────────────────
-function populateMeta() {
-  updateOG();
-  setOpts('ct', META.construction_types, 'Type II-A');
-  setOpts('code', META.code_versions, 'IBC 2023');
-  setOpts('jur', META.jurisdiction_presets, 'Chicago, IL');
-  setOpts('engProv', META.engine_providers, 'Mock Engine (Testing)');
-  const g = document.getElementById('drawGrid'); g.innerHTML = '';
-  (META.drawing_sets || []).forEach(ds => {
-    const e = document.createElement('div');
-    const on = selectedDrawings.has(ds);
-    e.className = 'ci' + (on ? ' on' : '');
-    e.dataset.v = ds;
-    e.innerHTML = `<div class="ck">${on?'✓':''}</div><span>${ds}</span>`;
-    e.onclick = () => toggleDraw(e, ds);
-    g.appendChild(e);
-  });
-  onJur(); onEng();
+// ── Sidebar tabs ──────────────────────────────────────────────────────────
+function stab(name) {
+  document.querySelectorAll('.stab').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('.spane').forEach(p => p.classList.remove('on'));
+  document.getElementById('stab-'+name).classList.add('on');
+  document.getElementById('spane-'+name).classList.add('on');
 }
 
-function updateOG() {
-  const bt = radio('btg');
-  setOpts('og', (META.occupancy_groups||FALLBACK_META.occupancy_groups)[bt] || [], 'B');
+// ── Main tabs ─────────────────────────────────────────────────────────────
+function mtab(name) {
+  document.querySelectorAll('.mtab').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('.mpanel').forEach(p => p.classList.remove('on'));
+  document.getElementById('mtab-'+name).classList.add('on');
+  document.getElementById('mpanel-'+name).classList.add('on');
 }
 
-function setOpts(id, vals, def) {
-  const s = document.getElementById(id);
-  s.innerHTML = vals.map(v => `<option${v===def?' selected':''}>${v}</option>`).join('');
-}
-
-// ── Event handlers ────────────────────────────────────────────────────────
-function sideTab(name, btn) {
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
-  document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
-  btn.classList.add('on');
-  document.getElementById('pane-' + name).classList.add('on');
-}
-
-function pickRadio(gid, el) {
-  document.querySelectorAll(`#${gid} .ro`).forEach(r => r.classList.remove('on'));
+// ── Radio buttons ─────────────────────────────────────────────────────────
+function pickRo(gid, el) {
+  document.querySelectorAll('#'+gid+' .ro').forEach(r => r.classList.remove('on'));
   el.classList.add('on');
   if (gid === 'btg') updateOG();
 }
-function radio(gid) {
-  return document.querySelector(`#${gid} .ro.on`)?.dataset.v || '';
+
+function getRo(gid) {
+  const el = document.querySelector('#'+gid+' .ro.on');
+  return el ? el.dataset.v : '';
 }
 
+// ── Populate meta ─────────────────────────────────────────────────────────
+function populateMeta() {
+  updateOG();
+  setOpts('ct',   META.construction_types,  'Type II-A');
+  setOpts('code', META.code_versions,        'IBC 2023');
+  setOpts('jur',  META.jurisdiction_presets, 'Chicago, IL');
+  setOpts('engProv', META.engine_providers,  'Mock Engine (Testing)');
+
+  const g = document.getElementById('drawGrid');
+  g.innerHTML = '';
+  (META.drawing_sets || []).forEach(ds => {
+    const el = document.createElement('div');
+    el.className = 'ci' + (selectedDrawings.has(ds) ? ' on' : '');
+    el.dataset.v = ds;
+    el.innerHTML = '<div class="ck">' + (selectedDrawings.has(ds) ? '✓' : '') + '</div><span>' + ds + '</span>';
+    el.onclick = function() { toggleDraw(this, ds); };
+    g.appendChild(el);
+  });
+
+  onJur();
+  onEng();
+}
+
+function updateOG() {
+  const bt = getRo('btg') || 'Commercial';
+  const groups = (META.occupancy_groups || FALLBACK.occupancy_groups)[bt] || [];
+  setOpts('og', groups, 'B');
+}
+
+function setOpts(id, vals, def) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = (vals || []).map(v => '<option' + (v === def ? ' selected' : '') + '>' + v + '</option>').join('');
+}
+
+function onJur() {
+  const name = document.getElementById('jur').value;
+  const d = (META.jurisdiction_details || FALLBACK.jurisdiction_details)[name];
+  if (!d) return;
+  document.getElementById('jurInfo').innerHTML =
+    '<div><b>Code: </b>' + d.adopted_building_code + '</div>' +
+    '<div><b>Fire: </b>' + d.adopted_fire_code + '</div>' +
+    '<div><b>Seismic SDC: </b>' + d.seismic_design_category + '</div>' +
+    '<div><b>Wind: </b>' + (d.wind_speed_mph || 'N/A') + ' mph</div>' +
+    (d.flood_zone ? '<div><b>Flood: </b>' + d.flood_zone + '</div>' : '') +
+    (d.local_amendments && d.local_amendments.length ? '<div><b>Amendments: </b>' + d.local_amendments.join(', ') + '</div>' : '');
+}
+
+const ENG_DESC = {
+  'Mock Engine (Testing)': 'No API key needed. Instant results for testing.',
+  'Anthropic Claude': 'Requires Anthropic API key.',
+  'NVIDIA Picasso': 'Requires NVIDIA API key. Use ⚡ NIM button for full pipeline.',
+  'OpenAI GPT-4o': 'Requires OpenAI API key.',
+};
+function onEng() {
+  const v = document.getElementById('engProv').value;
+  document.getElementById('engDesc').textContent = ENG_DESC[v] || '';
+}
+
+// ── Toggles ───────────────────────────────────────────────────────────────
 function toggleSp() {
   sprinklered = !sprinklered;
   document.getElementById('spTg').classList.toggle('on', sprinklered);
   document.getElementById('spLbl').textContent = sprinklered ? 'Fully Sprinklered (NFPA 13)' : 'Not Sprinklered';
 }
 
-function toggleImgGen() {
-  imgGenOn = !imgGenOn;
-  document.getElementById('imgGenTg').classList.toggle('on', imgGenOn);
-  document.getElementById('imgGenLbl').textContent = imgGenOn ? 'Image generation ON (Stage 3)' : 'Image generation OFF (manifest only)';
+function toggleDraw(el, ds) {
+  if (selectedDrawings.has(ds)) {
+    selectedDrawings.delete(ds); el.classList.remove('on'); el.querySelector('.ck').textContent = '';
+  } else {
+    selectedDrawings.add(ds); el.classList.add('on'); el.querySelector('.ck').textContent = '✓';
+  }
 }
 
-function toggleDraw(el, ds) {
-  if (selectedDrawings.has(ds)) { selectedDrawings.delete(ds); el.classList.remove('on'); el.querySelector('.ck').textContent = ''; }
-  else { selectedDrawings.add(ds); el.classList.add('on'); el.querySelector('.ck').textContent = '✓'; }
-}
 function allDraw(v) {
   document.querySelectorAll('#drawGrid .ci').forEach(el => {
     const ds = el.dataset.v;
-    if (v) { selectedDrawings.add(ds); el.classList.add('on'); el.querySelector('.ck').textContent='✓'; }
-    else   { selectedDrawings.delete(ds); el.classList.remove('on'); el.querySelector('.ck').textContent=''; }
+    if (v) { selectedDrawings.add(ds); el.classList.add('on'); el.querySelector('.ck').textContent = '✓'; }
+    else   { selectedDrawings.delete(ds); el.classList.remove('on'); el.querySelector('.ck').textContent = ''; }
   });
 }
+
 function fullSet() {
   allDraw(false);
   document.querySelectorAll('#drawGrid .ci').forEach(el => {
@@ -636,750 +498,398 @@ function fullSet() {
   });
 }
 
-function onJur() {
-  const d = (META.jurisdiction_details||FALLBACK_META.jurisdiction_details)[document.getElementById('jur').value];
-  if (!d) return;
-  const sdcClass = ['D','E','F'].includes(d.seismic_design_category) ? 'sdc-def' : d.seismic_design_category === 'C' ? 'sdc-c' : 'sdc-ab';
-  document.getElementById('jurInfo').innerHTML = `
-    <div><b>Code: </b>${d.adopted_building_code}</div>
-    <div><b>Fire: </b>${d.adopted_fire_code}</div>
-    <div><b>Seismic SDC: </b><span class="sdc ${sdcClass}">${d.seismic_design_category}</span></div>
-    <div><b>Wind: </b>${d.wind_speed_mph||'N/A'} mph / Exp. ${d.wind_exposure_category}</div>
-    <div><b>Snow: </b>${d.snow_load_psf||'N/A'} psf · Frost: ${d.frost_depth_in??'N/A'} in</div>
-    ${d.flood_zone ? `<div><b>Flood: </b>${d.flood_zone}</div>` : ''}
-    ${d.local_amendments?.length ? `<div><b>Amendments: </b>${d.local_amendments.join(', ')}</div>` : ''}
-  `;
-}
-
-const ENG_DESC = {
-  'Mock Engine (Testing)': 'No API key needed. Instant placeholder results for development.',
-  'Anthropic Claude':  'Claude API – structured JSON manifests. Needs Anthropic API key.',
-  'NVIDIA Picasso':    'Legacy NVIDIA Picasso endpoint. Use NIM button instead for full pipeline.',
-  'OpenAI GPT-4o':     'GPT-4o structured JSON manifests. Needs OpenAI key.',
-};
-function onEng() {
-  const v = document.getElementById('engProv').value;
-  document.getElementById('engDesc').textContent = ENG_DESC[v] || '';
-  document.getElementById('nimOpts').style.display = v === 'NVIDIA Picasso' ? 'flex' : 'none';
-}
-
-// ── Multi-format Upload ────────────────────────────────────────────────
-let currentUploadTab = 'dwg';
-
-function setUploadTab(tab, btn) {
-  currentUploadTab = tab;
-  document.querySelectorAll('.upload-tab').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  ['dwg','pdf','ifc','rvt'].forEach(t => {
-    const h = document.getElementById('upload-hint-'+t);
-    if (h) h.style.display = t===tab ? 'block' : 'none';
-  });
-  const rvtEl = document.getElementById('rvtNote');
-  if (rvtEl) rvtEl.style.display = tab==='rvt' ? 'block' : 'none';
-  const icons={dwg:'📐',pdf:'📄',ifc:'🏗',rvt:'⚡'};
-  const accepts={dwg:'.dwg,.dxf',pdf:'.pdf',ifc:'.ifc',rvt:'.rvt'};
-  const iconEl = document.getElementById('uploadIcon');
-  if (iconEl) iconEl.textContent = icons[tab]||'📂';
-  const fi = document.getElementById('fileInput');
-  if (fi) fi.accept = accepts[tab]||'.dwg,.dxf,.pdf,.ifc,.rvt';
-  clearUpload();
-}
-
-function doDrag(e, on) {
+// ── File upload ───────────────────────────────────────────────────────────
+function onDrop(e) {
   e.preventDefault();
-  document.getElementById('dropzone').classList.toggle('drag', on);
+  if (e.dataTransfer.files[0]) onFile({files: e.dataTransfer.files});
 }
-function doDrop(e) {
-  e.preventDefault();
-  document.getElementById('dropzone').classList.remove('drag');
-  const f = e.dataTransfer.files[0];
-  if (f) processFile(f);
-}
-function onFile(inp) { if (inp.files[0]) processFile(inp.files[0]); }
 
-async function processFile(file) {
-  if (file.size > 100*1024*1024) { toast('File exceeds 100 MB','err'); return; }
+async function onFile(inp) {
+  const file = inp.files[0]; if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
-  const isImage = ['jpg','jpeg','png'].includes(ext);
-  document.getElementById('uploadStatus').textContent = `Uploading ${file.name}…`;
-  document.getElementById('parseResult').style.display = 'none';
-  log(`Uploading: ${file.name} (${(file.size/1024).toFixed(0)} KB)`, 'i');
-
-  if (isImage) {
+  const status = document.getElementById('upStatus');
+  if (['jpg','jpeg','png'].includes(ext)) {
     const reader = new FileReader();
-    reader.onload = ev => {
-      uploadedB64 = ev.target.result.split(',')[1];
-      uploadedType = file.type;
-      document.getElementById('uploadStatus').textContent = `✓ ${file.name} – sketch ready for Vision AI`;
-      log('Sketch ready for Stage 1 Vision','s');
-      toast('Sketch loaded for Vision AI','ok');
-    };
+    reader.onload = e => { uploadedB64 = e.target.result.split(',')[1]; uploadedType = file.type; status.textContent = '✓ ' + file.name + ' – sketch ready'; };
     reader.readAsDataURL(file); return;
   }
-
-  const formData = new FormData();
-  formData.append('file', file);
-  const apsId = document.getElementById('apsClientId')?.value||'';
-  const apsSec = document.getElementById('apsClientSecret')?.value||'';
-  if (apsId) formData.append('aps_client_id', apsId);
-  if (apsSec) formData.append('aps_client_secret', apsSec);
-
+  status.textContent = 'Uploading ' + file.name + '…';
+  const fd = new FormData(); fd.append('file', file);
   try {
-    const resp = await fetch(API+'/api/upload/drawing',{method:'POST',body:formData});
-    if (!resp.ok) { const err=await resp.json(); throw new Error(err.detail||`HTTP ${resp.status}`); }
-    handleParsedDrawing(await resp.json(), file.name);
-  } catch(e) {
-    document.getElementById('uploadStatus').textContent = `✗ ${e.message}`;
-    toast(`Upload failed: ${e.message}`,'err'); log(e.message,'e');
-  }
-}
-
-function handleParsedDrawing(parsed, filename) {
-  if (parsed.has_preview && parsed.preview_image_b64) {
-    uploadedB64 = parsed.preview_image_b64; uploadedType = 'image/png';
-  }
-  const rooms=parsed.rooms||[], layers=parsed.layers||[], warns=parsed.warnings||[];
-  let h = `<div class="parse-row"><span class="parse-key">Format</span>
-    <span class="fmt-badge fmt-${parsed.format.toLowerCase()}">${parsed.format}</span>
-    <span class="parse-val" style="margin-left:4px">${escHtml(filename)}</span></div>`;
-  if (parsed.pages>1) h+=`<div class="parse-row"><span class="parse-key">Sheets</span><span class="parse-val">${parsed.pages}</span></div>`;
-  if (parsed.extents?.width_ft) h+=`<div class="parse-row"><span class="parse-key">Extents</span><span class="parse-val">${parsed.extents.width_ft}ft × ${parsed.extents.height_ft}ft</span></div>`;
-  if (layers.length) h+=`<div class="parse-row"><span class="parse-key">Layers</span><span class="parse-val">${escHtml(layers.slice(0,5).join(', '))}${layers.length>5?' …':''}</span></div>`;
-  if (rooms.length) {
-    h+=`<div class="parse-row" style="margin-top:4px"><span class="parse-key">Rooms</span><span class="parse-val">${rooms.length} detected</span></div>`;
-    h+=`<div class="parse-rooms">${rooms.slice(0,8).map(r=>`<span class="room-tag">${escHtml((r.name||'').slice(0,28))}</span>`).join('')}</div>`;
-  }
-  if (parsed.summary) h+=`<div style="margin-top:5px;font-size:.68rem;color:var(--text4)">${escHtml(parsed.summary.slice(0,180))}</div>`;
-  if (warns.length) h+=`<div style="margin-top:4px;font-size:.69rem;color:var(--warn)">⚠ ${escHtml(warns[0].slice(0,120))}</div>`;
-  if (parsed.has_preview && parsed.preview_image_b64)
-    h+=`<img class="parse-preview" src="data:image/png;base64,${parsed.preview_image_b64}" onclick="openModal(this.src)" title="Click to enlarge"/>`;
-  const panel=document.getElementById('parseResult');
-  panel.innerHTML=h; panel.style.display='block';
-  document.getElementById('uploadStatus').textContent=`✓ ${filename} parsed · ${rooms.length} room(s) · ${layers.length} layer(s)${parsed.has_preview?' · preview → Vision AI':''}`;
-  log(`${parsed.format} parsed: ${rooms.length} rooms, ${layers.length} layers`,'s');
-  toast(`${parsed.format} parsed – ${rooms.length} room(s) extracted`, parsed.has_preview?'nim':'ok');
-}
-
-function clearUpload() {
-  uploadedB64=''; uploadedType='image/jpeg';
-  const pr=document.getElementById('parseResult');
-  if (pr) pr.style.display='none';
-  document.getElementById('uploadStatus').textContent='';
+    const r = await fetch(API + '/api/upload/drawing', {method:'POST', body: fd});
+    const d = await r.json();
+    if (d.has_preview && d.preview_image_b64) { uploadedB64 = d.preview_image_b64; uploadedType = 'image/png'; }
+    status.textContent = '✓ ' + file.name + ' – ' + (d.rooms||[]).length + ' rooms, ' + (d.layers||[]).length + ' layers' + (d.has_preview ? ' · preview ready' : '');
+    toast(file.name.split('.').pop().toUpperCase() + ' parsed – ' + (d.rooms||[]).length + ' rooms found', 'nim');
+  } catch(e) { status.textContent = '✗ ' + e.message; }
 }
 
 // ── Build payload ─────────────────────────────────────────────────────────
-function buildPayload(nimMode=false) {
+function payload(nimMode) {
   const name = document.getElementById('projName').value.trim();
-  if (!name) { toast('Project name required', 'err'); return null; }
+  if (!name) { toast('Project name required','err'); return null; }
   const draws = [...selectedDrawings];
-  if (!draws.length) { toast('Select at least one drawing set', 'err'); return null; }
+  if (!draws.length) { toast('Select at least one drawing set','err'); return null; }
   return {
-    project_name:      name,
-    building_type:     radio('btg'),
-    occupancy_group:   document.getElementById('og').value,
+    project_name: name,
+    building_type: getRo('btg'),
+    occupancy_group: document.getElementById('og').value,
     construction_type: document.getElementById('ct').value,
     jurisdiction_preset: document.getElementById('jur').value,
-    primary_code:      document.getElementById('code').value,
-    drawing_sets:      draws,
-    engine_provider:   document.getElementById('engProv').value,
-    api_key:           document.getElementById('apiKey').value,
-    gross_sq_ft:       parseFloat(document.getElementById('sqft').value)||null,
-    num_stories:       parseInt(document.getElementById('stories').value)||null,
-    building_height_ft: parseFloat(document.getElementById('height').value)||null,
-    occupant_load:     parseInt(document.getElementById('occ').value)||null,
-    sprinklered,
+    primary_code: document.getElementById('code').value,
+    drawing_sets: draws,
+    engine_provider: document.getElementById('engProv').value,
+    api_key: document.getElementById('apiKey').value,
+    gross_sq_ft: parseFloat(document.getElementById('sqft').value) || null,
+    num_stories: parseInt(document.getElementById('stories').value) || null,
+    building_height_ft: parseFloat(document.getElementById('height').value) || null,
+    occupant_load: parseInt(document.getElementById('occ').value) || null,
+    sprinklered: sprinklered,
     accessibility_standard: document.getElementById('acc').value,
-    additional_notes:  document.getElementById('notes').value,
-    image_b64:         nimMode && uploadedB64 ? uploadedB64 : null,
-    image_media_type:  uploadedType,
-    generate_images:   imgGenOn,
+    additional_notes: document.getElementById('notes').value,
+    image_b64: nimMode && uploadedB64 ? uploadedB64 : null,
+    image_media_type: uploadedType,
+    generate_images: imgGenOn,
   };
 }
 
-// ── API Calls ─────────────────────────────────────────────────────────────
-async function runValidate() {
-  const p = buildPayload(); if (!p) return;
-  setLoading(true, 'Running compliance check…');
-  log(`Validating: ${p.project_name}`, 'i');
-  try {
-    const r = await post('/api/validate', p);
-    renderComplianceOnly(r);
-    const ok = r.compliance_report.is_compliant;
-    log(`Compliance: ${r.compliance_report.summary}`, ok ? 's' : 'e');
-    toast(ok ? 'Compliance check passed ✓' : `${r.compliance_report.blocking_count} blocking issue(s)`, ok ? 'ok' : 'err');
-  } catch(e) { toast(e.message,'err'); log(e.message,'e'); }
-  finally { setLoading(false); }
-}
-
-async function runNIM() {
-  const p = buildPayload(true); if (!p) return;
-  if (!p.api_key) { toast('NVIDIA API key required. Get one free at build.nvidia.com','err'); return; }
-  setLoading(true, 'Stage 1: Vision analysis…');
-  setStage(1, 'active');
-  animProg();
-  log(`NIM pipeline: ${p.project_name} · ${p.drawing_sets.length} sheet(s)`, 'n');
-  if (uploadedB64) log('Sketch uploaded – running Vision analysis (Stage 1)', 'i');
-
-  try {
-    setTimeout(() => { setStage(1,'done'); setStage(2,'active'); setLoaderMsg('Stage 2: Generating drawing manifest…'); }, 2000);
-    setTimeout(() => { setStage(2,'done'); setStage(3,'active'); setLoaderMsg('Stage 3: Generating drawing images…'); }, 5000);
-    const r = await post('/api/dispatch/nim', p);
-    setStage(3, 'done');
-    renderNIMResults(r);
-    const dur = r.stage_timings?.total ? ` in ${r.stage_timings.total}s` : '';
-    log(`NIM complete: ${r.drawing_count} sheet(s)${dur}`, 's');
-    toast(`${r.drawing_count} drawing(s) generated by NVIDIA NIM${dur}`, 'nim');
-  } catch(e) {
-    setStage(1,'error'); setStage(2,'error'); setStage(3,'error');
-    toast(e.message, 'err'); log(e.message, 'e');
-    renderError(e.message);
-  } finally { setLoading(false); stopProg(); }
-}
-
-async function runDispatch() {
-  const p = buildPayload(); if (!p) return;
-  setLoading(true, 'Generating drawings…'); animProg();
-  log(`Dispatching: ${p.project_name} → ${p.engine_provider}`, 'i');
-  try {
-    const r = await post('/api/dispatch', p);
-    renderResults(r);
-    log(`Job complete: ${r.drawing_count} sheet(s)`, 's');
-    toast(`${r.drawing_count} drawing(s) generated`, 'ok');
-  } catch(e) { toast(e.message,'err'); log(e.message,'e'); renderError(e.message); }
-  finally { setLoading(false); stopProg(); }
-}
-
-async function post(url, body) {
-  const r = await fetch(API + url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+// ── API calls ─────────────────────────────────────────────────────────────
+async function postJSON(path, body) {
+  const r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   const d = await r.json();
-  if (!r.ok) throw new Error(d.detail?.message || d.detail || `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(d.detail && typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
   return d;
 }
 
-// ── Render ────────────────────────────────────────────────────────────────
-function show(html) {
-  (document.getElementById('emptyState') && (document.getElementById('emptyState').style.display = 'none'));
-  document.getElementById('mainPanel-results').innerHTML = html;
+async function postBinary(path, body) {
+  const r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+  return r.blob();
 }
 
-function renderNIMResults(d) {
-  lastJob = d;
-  const r = d.compliance_report;
-  const hasImages = d.drawings.some(x => x.has_image && x.image_b64);
-  lastDrawings = d.drawings;
-  setupChat(d.drawings);
-
-  let timingsHtml = '';
-  if (d.stage_timings) {
-    timingsHtml = `<div class="timings">
-      ${Object.entries(d.stage_timings).map(([k,v]) =>
-        `<div class="timing">${k}: <span class="n">${v}s</span></div>`
-      ).join('')}
-    </div>`;
-  }
-
-  let visionHtml = '';
-  if (d.vision_analysis) {
-    let vtext = d.vision_analysis;
-    try { vtext = JSON.stringify(JSON.parse(d.vision_analysis), null, 2); } catch {}
-    visionHtml = `<div class="vision-panel">
-      <div class="vp-hdr">🔍 Stage 1 – Vision Analysis <span style="font-size:.68rem;color:var(--text4);margin-left:auto;font-family:var(--mono)">meta/llama-3.2-90b-vision-instruct</span></div>
-      <div class="vp-body">${escHtml(vtext)}</div>
-    </div>`;
-  }
-
-  const errHtml = d.pipeline_errors?.length ?
-    `<div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">
-      <div style="font-size:.75rem;font-weight:700;color:var(--error);margin-bottom:4px">⚠ Pipeline Warnings</div>
-      ${d.pipeline_errors.map(e => `<div style="font-size:.72rem;color:var(--text3)">${escHtml(e)}</div>`).join('')}
-    </div>` : '';
-
-  show(`
-    <div class="card">
-      <div class="card-hdr">
-        <div class="card-ico nim-ico">⚡</div>
-        <div><div class="card-t">NVIDIA NIM Pipeline Complete</div>
-          <div class="card-s">${d.project_name} · ${d.drawing_count} sheet(s) · ${d.engine}</div>
-        </div>
-        <div style="margin-left:auto">${sbadge(d.status)}</div>
-      </div>
-      ${timingsHtml}
-    </div>
-
-    ${r ? `<div class="card">
-      <div class="card-hdr"><div class="card-ico">📋</div>
-        <div><div class="card-t">Compliance Report</div><div class="card-s">${r.summary}</div></div>
-      </div>
-      ${compBar(r)}${findings(r.findings)}
-    </div>` : ''}
-
-    ${visionHtml}
-    ${errHtml}
-
-    <div class="card">
-      <div class="card-hdr">
-        <div class="card-ico nim-ico">📄</div>
-        <div><div class="card-t">Drawing Manifest</div>
-          <div class="card-s">${d.drawing_count} sheet(s) · ${hasImages?'with AI-generated images':'manifest only'}</div>
-        </div>
-      </div>
-      <div class="dg">${d.drawings.map((dr,i) => sheetCard(dr,i,d)).join('')}</div>
-    </div>
-    ${exportBar(d)}
-  `);
+function setLoading(on, msg) {
+  document.getElementById('ldr').classList.toggle('on', on);
+  if (msg) document.getElementById('ldrMsg').textContent = msg;
+  document.getElementById('btnGen').disabled = on;
 }
 
+let _pi;
+function startProg() {
+  const f = document.getElementById('progF'), t = document.getElementById('prog');
+  t.classList.add('on'); f.style.width = '0%'; let w = 0;
+  _pi = setInterval(() => { w = Math.min(w + Math.random() * 6, 88); f.style.width = w + '%'; }, 300);
+}
+function stopProg() {
+  clearInterval(_pi);
+  document.getElementById('progF').style.width = '100%';
+  setTimeout(() => { document.getElementById('prog').classList.remove('on'); document.getElementById('progF').style.width = '0'; }, 600);
+}
+
+async function runValidate() {
+  const p = payload(false); if (!p) return;
+  setLoading(true, 'Running compliance check…');
+  log('Validating: ' + p.project_name, 'i');
+  try {
+    const d = await postJSON('/api/validate', p);
+    renderResults({compliance_report: d.compliance_report, drawings: [], drawing_count: 0, status: 'validate', engine: 'Compliance Engine'});
+    toast(d.compliance_report.is_compliant ? 'Compliant ✓' : d.compliance_report.blocking_count + ' error(s) found', d.compliance_report.is_compliant ? 'ok' : 'err');
+    log('Compliance: ' + d.compliance_report.summary, d.compliance_report.is_compliant ? 's' : 'e');
+  } catch(e) { toast(e.message, 'err'); log(e.message, 'e'); }
+  finally { setLoading(false); }
+}
+
+async function runDispatch() {
+  const p = payload(false); if (!p) return;
+  setLoading(true, 'Generating drawings…'); startProg();
+  log('Dispatching: ' + p.project_name, 'i');
+  try {
+    const d = await postJSON('/api/dispatch', p);
+    renderResults(d); lastJob = d;
+    toast(d.drawing_count + ' sheet(s) generated', 'ok');
+    log('Job complete: ' + d.drawing_count + ' sheets', 's');
+  } catch(e) { toast(e.message, 'err'); log(e.message, 'e'); }
+  finally { setLoading(false); stopProg(); }
+}
+
+async function runNIM() {
+  const p = payload(true); if (!p) return;
+  const key = document.getElementById('apiKey').value;
+  if (!key) { toast('NVIDIA API key required. Add it in the Engine tab.', 'err'); return; }
+  p.api_key = key;
+  setLoading(true, 'Stage 1: Vision…'); startProg();
+  log('NIM pipeline: ' + p.project_name, 'n');
+  try {
+    setTimeout(() => document.getElementById('ldrMsg').textContent = 'Stage 2: Generating manifest…', 3000);
+    setTimeout(() => document.getElementById('ldrMsg').textContent = 'Stage 3: Generating images…', 7000);
+    const d = await postJSON('/api/dispatch/nim', p);
+    renderResults(d); lastJob = d;
+    toast(d.drawing_count + ' sheet(s) generated by NVIDIA NIM', 'nim');
+    log('NIM complete: ' + d.drawing_count + ' sheets', 's');
+  } catch(e) { toast(e.message, 'err'); log(e.message, 'e'); }
+  finally { setLoading(false); stopProg(); }
+}
+
+// ── Render results ────────────────────────────────────────────────────────
 function renderResults(d) {
-  lastJob = d;
-  lastDrawings = d.drawings || [];
-  setupChat(lastDrawings);
-  show(`
-    <div class="card">
-      <div class="card-hdr"><div class="card-ico">📐</div>
-        <div><div class="card-t">Generation Complete</div>
-          <div class="card-s">Job ${d.job_id?.slice(0,8)}… · ${d.engine} · ${d.drawing_count} sheet(s)</div>
-        </div>
-        <div style="margin-left:auto">${sbadge(d.status)}</div>
-      </div>
-    </div>
-    ${d.compliance_report ? `<div class="card">
-      <div class="card-hdr"><div class="card-ico">✅</div>
-        <div><div class="card-t">Compliance Report</div><div class="card-s">${d.compliance_report.summary}</div></div>
-      </div>
-      ${compBar(d.compliance_report)}${findings(d.compliance_report.findings)}
-    </div>` : ''}
-    <div class="card">
-      <div class="card-hdr"><div class="card-ico">📄</div>
-        <div><div class="card-t">Drawing Manifest</div><div class="card-s">${d.drawing_count} sheet(s)</div></div>
-      </div>
-      <div class="dg">${(d.drawings||[]).map((dr,i) => sheetCard(dr,i,d)).join('')}</div>
-    </div>
-    ${exportBar(d)}
-  `);
-}
-
-function renderComplianceOnly(d) {
+  const el = document.getElementById('mpanel-results');
   const r = d.compliance_report;
-  show(`<div class="card">
-    <div class="card-hdr"><div class="card-ico">📋</div>
-      <div><div class="card-t">Compliance Report</div><div class="card-s">${d.project_name}</div></div>
-      <div style="margin-left:auto">${sbadge(r.is_compliant?'pass':'fail')}</div>
-    </div>
-    ${compBar(r)}${findings(r.findings)}
-  </div>`);
+  let html = '';
+
+  if (r) {
+    html += '<div class="card"><div class="chdr"><div class="cico">📋</div>' +
+      '<div><div class="ct">Compliance Report</div><div class="cs">' + r.summary + '</div></div>' +
+      '<span class="sb ' + (r.is_compliant ? 'sb-ok' : 'sb-fail') + '">' + (r.is_compliant ? 'PASS' : 'FAIL') + '</span></div>' +
+      compBar(r) + finds(r.findings) + '</div>';
+  }
+
+  if (d.drawings && d.drawings.length) {
+    const hasImg = d.drawings.some(x => x.has_image && x.image_b64);
+    html += '<div class="card"><div class="chdr"><div class="cico nv">📄</div>' +
+      '<div><div class="ct">Drawing Manifest</div><div class="cs">' + d.drawing_count + ' sheet(s) · ' + (d.engine || '') + '</div></div></div>';
+    if (lastJob) {
+      html += '<div class="ebar"><div class="ebar-t">📦 Export</div>' +
+        '<button class="ebtn eb-pdf" onclick="dlPDF()">📄 PDF</button>' +
+        '<button class="ebtn eb-dxf" onclick="dlPackage()">⬇ Full Package</button></div>';
+    }
+    html += '<div class="sg">' + d.drawings.map((dr, i) => sheetCard(dr, i)).join('') + '</div></div>';
+    setupChat(d.drawings);
+  }
+
+  if (!html) {
+    html = '<div class="empty"><div style="font-size:48px">✓</div><p>Done</p></div>';
+  }
+
+  el.innerHTML = html;
+  document.getElementById('emptyState') && (document.getElementById('emptyState').style.display = 'none');
+  mtab('results');
 }
 
-function renderError(msg) {
-  show(`<div class="card" style="border-color:var(--error)">
-    <div class="card-hdr"><div class="card-ico" style="background:var(--error)">⚠</div>
-      <div><div class="card-t">Request Failed</div><div class="card-s" style="color:var(--error)">${escHtml(msg)}</div></div>
-    </div>
-  </div>`);
-}
-
-function sheetCard(d, idx, job=null) {
+function sheetCard(d, i) {
   const hasImg = d.has_image && d.image_b64;
-  const imgHtml = hasImg
-    ? `<img class="dc-img" src="data:image/png;base64,${d.image_b64}" alt="${d.title}" onclick="openModal(this.src)" title="Click to enlarge"/>`
-    : `<div class="dc-img-placeholder"><span style="font-size:24px">📄</span><span>${d.sheet_type||'Drawing'}</span></div>`;
-
-  const notesHtml = (d.key_notes||[]).slice(0,3).map(n =>
-    `<div class="dc-note">• ${escHtml(n)}</div>`
-  ).join('');
-
-  const tagsHtml = (d.code_sections||[]).slice(0,3).map(t =>
-    `<span class="tag">${escHtml(t)}</span>`
-  ).join('') + (hasImg ? `<span class="tag tag-green">PNG</span>` : `<span class="tag">JSON</span>`);
-
-  return `<div class="dc">
-    ${imgHtml}
-    <div class="dc-body">
-      <div class="dc-num">${d.sheet_number||'—'}</div>
-      <div class="dc-title">${escHtml(d.title||'Untitled')}</div>
-      <div class="dc-type">${d.sheet_type||''} · ${d.discipline||'Architecture'} · ${d.scale||''}</div>
-      <div class="dc-tags">${tagsHtml}</div>
-      ${notesHtml ? `<div class="dc-meta">${notesHtml}</div>` : ''}
-    </div>
-    <div class="dc-actions">
-      <button class="btn btn-sec btn-sm" onclick="selectSheet(${idx})" style="flex:1;font-size:.68rem">💬 Refine</button>
-      ${hasImg ? `<button class="btn btn-sec btn-sm" onclick="openModal('data:image/png;base64,${d.image_b64}')" style="font-size:.68rem">🔍</button>` : ''}
-      ${job ? `<button class="btn btn-dxf btn-sm" onclick="downloadDXF(${idx})" title="Download DXF" style="font-size:.68rem">⬇ DXF</button>` : ''}
-    </div>
-  </div>`;
+  let h = '<div class="sc">';
+  if (hasImg) {
+    h += '<img src="data:image/png;base64,' + d.image_b64 + '" style="width:100%;border-radius:4px;margin-bottom:6px;cursor:pointer" onclick="openModal(this.src)"/>';
+  }
+  h += '<div class="snum">' + esc(d.sheet_number || '') + '</div>' +
+    '<div class="stit">' + esc(d.title || '') + '</div>' +
+    '<div class="stype">' + esc(d.sheet_type || '') + '</div>' +
+    '<span class="stag">' + (d.format || 'JSON') + '</span>' +
+    '<button onclick="selSheet(' + i + ')" style="margin-top:6px;font-size:.68rem;padding:3px 8px;background:var(--surf3);border:1px solid var(--bdr);border-radius:4px;cursor:pointer;color:var(--txt2)">💬 Refine</button>' +
+    '</div>';
+  return h;
 }
 
-// ── Components ────────────────────────────────────────────────────────────
 function compBar(r) {
-  return `<div class="cbar">
-    <span style="font-size:1.1rem">${r.is_compliant?'✅':'🔴'}</span>
-    <div class="cbar-sum">
-      <div class="cbar-t">${r.is_compliant?'Specification Compliant':'Compliance Failures Detected'}</div>
-      <div class="cbar-s">${r.summary||''}</div>
-    </div>
-    <div class="cbar-nums">
-      <div class="cn"><div class="n" style="color:${r.blocking_count?'var(--error)':'var(--text4)'}">${r.blocking_count}</div><div class="l">Errors</div></div>
-      <div class="cn"><div class="n" style="color:${r.warning_count?'var(--warn)':'var(--text4)'}">${r.warning_count}</div><div class="l">Warnings</div></div>
-    </div>
-  </div>`;
+  return '<div class="cbar"><span style="font-size:1rem">' + (r.is_compliant ? '✅' : '🔴') + '</span>' +
+    '<div class="cbar-s"><div class="cbar-t">' + (r.is_compliant ? 'Specification Compliant' : 'Compliance Failures') + '</div>' +
+    '<div class="cbar-sub">' + r.summary + '</div></div>' +
+    '<div class="cnums">' +
+    '<div class="cn"><div class="n" style="color:' + (r.blocking_count ? 'var(--err)' : 'var(--txt3)') + '">' + r.blocking_count + '</div><div class="l">Errors</div></div>' +
+    '<div class="cn"><div class="n" style="color:' + (r.warning_count ? 'var(--warn)' : 'var(--txt3)') + '">' + r.warning_count + '</div><div class="l">Warnings</div></div>' +
+    '</div></div>';
 }
 
-function findings(fs) {
-  if (!fs?.length) return '<p style="color:var(--success);font-size:.78rem;padding:4px 0">No findings – fully compliant ✓</p>';
-  return `<div class="findings">${fs.map(f => {
-    const sc = f.severity.toLowerCase();
-    return `<div class="fi fi-${sc}">
-      <div class="fi-hdr"><span class="sev sev-${f.severity}">${f.severity}</span><span class="fi-rule">${f.rule_id}</span></div>
-      <div class="fi-sec">${f.code_section}</div>
-      <div class="fi-desc">${f.description}</div>
-      ${f.recommendation?`<div class="fi-rec">${f.recommendation}</div>`:''}
-    </div>`;
-  }).join('')}</div>`;
+function finds(fs) {
+  if (!fs || !fs.length) return '<p style="color:var(--grn);font-size:.78rem;padding:4px 0">No findings – fully compliant ✓</p>';
+  return '<div class="finds">' + fs.map(f => {
+    const s = f.severity || 'INFO';
+    return '<div class="fi fi-' + s + '">' +
+      '<div><span class="sev sev-' + s + '">' + s + '</span><span style="font-family:var(--mono);font-size:.68rem;color:var(--txt3)">' + esc(f.rule_id || '') + '</span></div>' +
+      '<div class="fi-sec">' + esc(f.code_section || '') + '</div>' +
+      '<div class="fi-desc">' + esc(f.description || '') + '</div>' +
+      (f.recommendation ? '<div class="fi-rec">' + esc(f.recommendation) + '</div>' : '') +
+      '</div>';
+  }).join('') + '</div>';
 }
 
-function sbadge(s) {
-  const m={completed:'s-ok',pass:'s-ok',completed:'s-ok',partial:'s-part',failed:'s-fail',fail:'s-fail'};
-  return `<span class="sbadge ${m[s]||'s-warn'}">${s.toUpperCase()}</span>`;
+// ── Export ────────────────────────────────────────────────────────────────
+async function dlPDF() {
+  if (!lastJob) return;
+  toast('Generating PDF…','info');
+  try {
+    const b = await postBinary('/api/export/pdf', {job: lastJob});
+    dlBlob(b, (lastJob.project_name||'project').replace(/\s+/g,'_')+'_construction.pdf');
+    toast('PDF downloaded','ok');
+  } catch(e) { toast(e.message,'err'); }
 }
 
-// ── Chat Refinement ───────────────────────────────────────────────────────
+async function dlPackage() {
+  if (!lastJob) return;
+  toast('Building ZIP package…','info');
+  try {
+    const b = await postBinary('/api/export/package', {job: lastJob});
+    dlBlob(b, (lastJob.project_name||'project').replace(/\s+/g,'_')+'_construction_set.zip');
+    toast('Package downloaded','ok');
+  } catch(e) { toast(e.message,'err'); }
+}
+
+function dlBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────
 function setupChat(drawings) {
-  if (!drawings?.length) return;
-  const sel = document.getElementById('sheetSelect');
-  sel.innerHTML = drawings.map((d,i) =>
-    `<option value="${i}">${d.sheet_number} – ${d.title||'Sheet'}</option>`
-  ).join('');
+  if (!drawings || !drawings.length) return;
+  lastDrawings = drawings;
+  const sel = document.getElementById('sheetSel');
+  sel.innerHTML = drawings.map((d, i) => '<option value="' + i + '">' + (d.sheet_number||'') + ' – ' + (d.title||'Sheet') + '</option>').join('');
   document.getElementById('chatSection').style.display = 'flex';
-  chatHistory = []; currentSheetIdx = 0;
-  // Show key notice if no API key entered
-  const hasKey = document.getElementById('apiKey')?.value?.trim();
-  const notice = document.getElementById('chatKeyNotice');
-  if (notice) notice.style.display = hasKey ? 'none' : 'inline';
-  document.getElementById('chatBody').innerHTML =
-    `<div class="msg msg-ai">✅ ${drawings.length} sheet(s) generated. Select a sheet above, then ask me to refine it — add code notes, update egress requirements, adjust ADA details, or change dimensions.</div>` +
-    (hasKey ? '' : `<div class="msg msg-ai" style="border-color:var(--warn);color:var(--warn)">⚠ Chat refinement requires a NVIDIA API key. Add it in the <strong>Engine</strong> tab, then regenerate.</div>`);
-}">${d.sheet_number} – ${d.title||"Sheet"}</option>`
-  ).join('');
-  document.getElementById('chatSection').style.display = 'flex';
-  chatHistory = [];
-  document.getElementById('chatBody').innerHTML = `
-    <div class="msg msg-ai">Drawing manifest generated. Select a sheet above and ask me to refine it — add code notes, update egress requirements, adjust ADA details, etc.</div>`;
+  chatHistory = []; currentSheet = 0;
+  document.getElementById('chatBody').innerHTML = '<div class="ma msg">✅ ' + drawings.length + ' sheet(s) generated. Select a sheet and ask me to refine it.</div>';
 }
 
-function selectSheet(idx) {
-  currentSheetIdx = idx;
-  document.getElementById('sheetSelect').value = idx;
+function selSheet(idx) {
+  currentSheet = idx;
+  document.getElementById('sheetSel').value = idx;
   const d = lastDrawings[idx];
-  addChat('ai', `Selected sheet ${d.sheet_number}: "${d.title}". What would you like to change?`);
-  document.getElementById('chatSection').scrollIntoView({behavior:'smooth'});
+  addMsg('ai', 'Selected ' + (d.sheet_number||'sheet') + ': "' + (d.title||'') + '". What would you like to change?');
 }
 
 async function sendChat() {
   const inp = document.getElementById('chatIn');
   const msg = inp.value.trim(); if (!msg) return;
-  const apiKey = document.getElementById('apiKey').value;
-  if (!apiKey) { toast('Enter your NVIDIA API key to use chat refinement','err'); return; }
-
-  addChat('user', msg); inp.value = '';
-  const d = lastDrawings[currentSheetIdx];
-  if (!d) return;
-
-  addChat('ai', '⏳ Thinking…');
+  const key = document.getElementById('apiKey').value;
+  if (!key) { toast('NVIDIA API key required for chat refinement','err'); return; }
+  addMsg('user', msg); inp.value = '';
+  const d = lastDrawings[currentSheet]; if (!d) return;
+  addMsg('ai', '⏳ Thinking…');
   try {
-    const r = await post('/api/chat/refine', {
-      sheet_number:   d.sheet_number,
-      sheet_title:    d.title,
-      instruction:    msg,
-      key_notes:      d.key_notes || [],
-      drawing_prompt: d.drawing_prompt || '',
-      history:        chatHistory.slice(-6),
-      api_key:        apiKey,
+    const r = await postJSON('/api/chat/refine', {
+      sheet_number: d.sheet_number, sheet_title: d.title,
+      instruction: msg, key_notes: d.key_notes||[], drawing_prompt: d.drawing_prompt||'',
+      history: chatHistory.slice(-6), api_key: key,
     });
-    // Remove "thinking" bubble
     const cb = document.getElementById('chatBody');
     cb.removeChild(cb.lastChild);
-    addChat('ai', r.reply);
+    addMsg('ai', r.reply);
     chatHistory.push({role:'user',content:msg},{role:'assistant',content:r.reply});
-    // Update drawing notes in lastDrawings
-    if (r.key_notes) lastDrawings[currentSheetIdx].key_notes = r.key_notes;
-    toast('Drawing refined by Llama 3.1', 'nim');
+    if (r.key_notes) lastDrawings[currentSheet].key_notes = r.key_notes;
+    toast('Sheet refined by Llama 3.1','nim');
   } catch(e) {
     const cb = document.getElementById('chatBody');
     cb.removeChild(cb.lastChild);
-    addChat('ai', `Error: ${e.message}`);
+    addMsg('ai', 'Error: ' + e.message);
   }
 }
 
-function addChat(role, text) {
+function addMsg(role, text) {
   const cb = document.getElementById('chatBody');
   const el = document.createElement('div');
-  el.className = `msg msg-${role}`;
+  el.className = 'msg ' + (role==='user' ? 'mu' : 'ma');
   el.textContent = text;
-  cb.appendChild(el);
-  cb.scrollTop = cb.scrollHeight;
+  cb.appendChild(el); cb.scrollTop = cb.scrollHeight;
+}
+
+// ── Floor Plan Generator ──────────────────────────────────────────────────
+async function genFP() {
+  const desc = document.getElementById('fpDesc').value.trim();
+  if (!desc || desc.length < 10) { toast('Describe your floor plan first','err'); return; }
+  const btn = document.getElementById('fpBtn');
+  btn.disabled = true;
+  document.getElementById('fpStatus').textContent = 'Generating…';
+  document.getElementById('fpResult').style.display = 'none';
+  log('Generating floor plan…','n');
+  try {
+    const d = await postJSON('/api/generate/floorplan', {
+      description: desc,
+      project_name: document.getElementById('fpName').value || 'My Project',
+      building_type: getRo('fpBtg'),
+      primary_code: document.getElementById('fpCode').value,
+      jurisdiction: document.getElementById('fpJur').value,
+      api_key: document.getElementById('fpKey').value,
+    });
+    fpData = d;
+    document.getElementById('fpStats').innerHTML = [
+      ['Rooms', d.room_count], ['Total SF', Math.round(d.total_sqft)],
+      ['Occupants', d.occupant_load], ['Building', Math.round(d.building_w_ft) + '×' + Math.round(d.building_d_ft) + ' ft'],
+    ].map(([l,v]) => '<div class="stat"><div class="n">' + v + '</div><div class="l">' + l + '</div></div>').join('');
+    document.getElementById('fpSvg').innerHTML = d.svg_data || '';
+    document.getElementById('fpRooms').innerHTML = (d.rooms||[]).map(r =>
+      '<div class="frc"><div class="frn">' + esc(r.name) + '</div>' +
+      '<div class="frsf">' + Math.round(r.sqft) + ' SF</div>' +
+      '<div class="frm">' + Math.round(r.width_ft) + '×' + Math.round(r.depth_ft) + ' ft · ' + r.zone + '</div>' +
+      (r.occupant_load > 0 ? '<div class="frm">' + r.occupant_load + ' occupants</div>' : '') + '</div>'
+    ).join('');
+    document.getElementById('fpResult').style.display = 'block';
+    document.getElementById('fpStatus').textContent = '✓ ' + d.room_count + ' rooms · ' + Math.round(d.total_sqft) + ' SF · ' + d.parser_mode + ' parser';
+    toast('Floor plan generated – ' + d.room_count + ' rooms, ' + Math.round(d.total_sqft) + ' SF','nim');
+    log('Floor plan: ' + d.room_count + ' rooms, ' + Math.round(d.total_sqft) + ' SF','s');
+  } catch(e) {
+    document.getElementById('fpStatus').textContent = '✗ ' + e.message;
+    toast(e.message,'err'); log(e.message,'e');
+  } finally { btn.disabled = false; }
+}
+
+function dlFpSvg() {
+  if (!fpData || !fpData.svg_data) return;
+  dlBlob(new Blob([fpData.svg_data],{type:'image/svg+xml'}), (fpData.project_name||'floorplan').replace(/\s+/g,'_')+'_A1.0.svg');
+  toast('SVG downloaded','ok');
+}
+
+function dlFpDxf() {
+  if (!fpData || !fpData.dxf_b64) return;
+  const bytes = Uint8Array.from(atob(fpData.dxf_b64), c => c.charCodeAt(0));
+  dlBlob(new Blob([bytes],{type:'application/dxf'}), (fpData.project_name||'floorplan').replace(/\s+/g,'_')+'_A1.0.dxf');
+  toast('DXF downloaded','ok');
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────
 function openModal(src) {
   document.getElementById('modalImg').src = src;
-  document.getElementById('imgModal').classList.add('on');
+  document.getElementById('modal').classList.add('on');
 }
-function closeModal() { document.getElementById('imgModal').classList.remove('on'); }
-
-// ── Stage indicators ──────────────────────────────────────────────────────
-function setStage(n, state) {
-  const el = document.getElementById('st'+n);
-  el.className = 'stage';
-  if (state) el.classList.add(state);
-}
-function resetStages() { [1,2,3].forEach(n => setStage(n,'')); }
 
 // ── Utilities ─────────────────────────────────────────────────────────────
-function setLoading(on, msg='') {
-  document.getElementById('loader').classList.toggle('on', on);
-  document.getElementById('loaderMsg').textContent = msg;
-  document.getElementById('btnNim').disabled = on;
-  document.getElementById('btnGen').disabled = on;
-  if (!on) resetStages();
-}
-function setLoaderMsg(m) { document.getElementById('loaderMsg').textContent = m; }
-
-let _prog;
-function animProg() {
-  const f = document.getElementById('progFill'), t = document.getElementById('progTrack');
-  t.classList.add('on'); f.style.width='0%'; let w=0;
-  _prog = setInterval(() => { w=Math.min(w+Math.random()*5,88); f.style.width=w+'%'; }, 300);
-}
-function stopProg() {
-  clearInterval(_prog);
-  const f=document.getElementById('progFill');
-  f.style.width='100%';
-  setTimeout(()=>{ document.getElementById('progTrack').classList.remove('on'); f.style.width='0'; },600);
+function log(msg, type) {
+  const p = document.getElementById('log');
+  const t = new Date().toLocaleTimeString('en-US',{hour12:false});
+  const colors = {i:'var(--acc)',s:'var(--grn)',e:'var(--err)',w:'var(--warn)',n:'var(--nv)'};
+  const el = document.createElement('div');
+  el.style.color = colors[type] || 'var(--txt3)';
+  el.textContent = t + '  ' + msg;
+  p.appendChild(el); p.scrollTop = p.scrollHeight;
 }
 
-function log(msg, type='i') {
-  const p=document.getElementById('log');
-  const el=document.createElement('div'); el.className='le';
-  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
-  el.innerHTML=`<span class="lt">${t}</span><span class="l${type}">${escHtml(msg)}</span>`;
-  p.appendChild(el); p.scrollTop=p.scrollHeight;
+function toast(msg, type) {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  const cls = {ok:'tok',err:'terr',info:'tinfo',nim:'tnim'};
+  el.className = 'toast ' + (cls[type]||'tinfo');
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
 }
 
-function toast(msg, type='ok') {
-  const c=document.getElementById('toasts');
-  const t=document.createElement('div');
-  const cls={ok:'toast-ok',err:'toast-err',info:'toast-info',nim:'toast-nim'};
-  t.className=`toast ${cls[type]||'toast-info'}`;
-  const icons={ok:'✓',err:'✕',info:'ℹ',nim:'⚡'};
-  t.innerHTML=`<span>${icons[type]||'•'}</span><span>${escHtml(msg)}</span>`;
-  c.appendChild(t); setTimeout(()=>t.remove(),4500);
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function escHtml(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// ── Fallback meta (when API offline) ─────────────────────────────────────
-const FALLBACK_META={
-  building_types:['Commercial','Residential'],
-  occupancy_groups:{'Commercial':['A-1','A-2','A-3','A-4','A-5','B','E','F-1','F-2','H-1','H-2','H-3','H-4','H-5','I-1','I-2','I-3','I-4','M','S-1','S-2','U'],'Residential':['R-1','R-2','R-3','R-4']},
-  construction_types:['Type I-A','Type I-B','Type II-A','Type II-B','Type III-A','Type III-B','Type IV-HT','Type IV-A','Type IV-B','Type IV-C','Type V-A','Type V-B'],
-  code_versions:['IBC 2023','IBC 2021','IBC 2018','CBC 2022','NFPA 5000'],
-  drawing_sets:['Site Plan','Floor Plan','Exterior Elevations','Building Sections','Architectural Details','Structural Drawings','MEP Drawings','Fire & Life Safety','Accessibility Plan','Full Construction Set'],
-  engine_providers:['Anthropic Claude','NVIDIA Picasso','OpenAI GPT-4o','Mock Engine (Testing)'],
-  jurisdiction_presets:['New York City, NY','Los Angeles, CA','Chicago, IL','Houston, TX','Miami, FL','Seattle, WA','Phoenix, AZ','Denver, CO','Custom / Manual Entry'],
-  jurisdiction_details:{'Chicago, IL':{adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'B',wind_exposure_category:'B',wind_speed_mph:90,snow_load_psf:25,frost_depth_in:42,flood_zone:null,local_amendments:['Chicago Building Code']},'Los Angeles, CA':{adopted_building_code:'CBC 2022',adopted_fire_code:'CFC 2022',seismic_design_category:'D',wind_exposure_category:'B',wind_speed_mph:95,snow_load_psf:null,frost_depth_in:0,flood_zone:null,local_amendments:['LA Green Building Code']},'Miami, FL':{adopted_building_code:'IBC 2023',adopted_fire_code:'FBC 2023',seismic_design_category:'A',wind_exposure_category:'D',wind_speed_mph:175,snow_load_psf:null,frost_depth_in:0,flood_zone:'VE',local_amendments:['FBC 2023','HVHZ']},'New York City, NY':{adopted_building_code:'IBC 2021',adopted_fire_code:'NYCFC 2022',seismic_design_category:'B',wind_exposure_category:'D',wind_speed_mph:115,snow_load_psf:null,frost_depth_in:36,flood_zone:null,local_amendments:['NYC Building Code 2022']},'Seattle, WA':{adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'D',wind_exposure_category:'B',wind_speed_mph:85,snow_load_psf:25,frost_depth_in:12,flood_zone:null,local_amendments:['Seattle Building Code']},'Houston, TX':{adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'A',wind_exposure_category:'D',wind_speed_mph:130,snow_load_psf:null,frost_depth_in:0,flood_zone:'AE',local_amendments:['Houston IBC Amendments']},'Phoenix, AZ':{adopted_building_code:'IBC 2018',adopted_fire_code:'IFC 2018',seismic_design_category:'C',wind_exposure_category:'B',wind_speed_mph:90,snow_load_psf:null,frost_depth_in:0,flood_zone:null,local_amendments:[]},'Denver, CO':{adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'B',wind_exposure_category:'B',wind_speed_mph:105,snow_load_psf:30,frost_depth_in:36,flood_zone:null,local_amendments:['Denver Building Code']},'Custom / Manual Entry':{adopted_building_code:'IBC 2023',adopted_fire_code:'IFC 2023',seismic_design_category:'B',wind_exposure_category:'B',wind_speed_mph:null,snow_load_psf:null,frost_depth_in:null,flood_zone:null,local_amendments:[]}}
-};
-
-// ── Export functions ──────────────────────────────────────────────────────
-function exportBar(job) {
-  if (!job || !job.drawings?.length) return '';
-  return `<div class="export-bar">
-    <div class="export-bar-title">📦 Export Construction Set</div>
-    <button class="btn-export btn-pdf" id="btnPdf" onclick="downloadPDF()">
-      <span class="export-spin"></span>📄 PDF
-    </button>
-    <button class="btn-export btn-zip" id="btnZip" onclick="downloadPackage()">
-      <span class="export-spin"></span>⬇ Full Package  <span style="font-size:.65rem;opacity:.7">(PDF + DXF + manifest)</span>
-    </button>
-  </div>`;
-}
-
-async function downloadPDF() {
-  if (!lastJob) return;
-  const btn = document.getElementById('btnPdf');
-  if (btn) btn.classList.add('exporting');
-  log('Generating PDF...', 'i');
-  try {
-    const resp = await fetch(API + '/api/export/pdf', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({job: lastJob})
-    });
-    if (!resp.ok) throw new Error(await resp.text());
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = (lastJob.project_name||'project').replace(/\s+/g,'_') + '_construction_documents.pdf';
-    a.click();
-    URL.revokeObjectURL(url);
-    log('PDF downloaded', 's');
-    toast('PDF downloaded successfully', 'ok');
-  } catch(e) { toast('PDF export failed: ' + e.message, 'err'); log(e.message,'e'); }
-  finally { if (btn) btn.classList.remove('exporting'); }
-}
-
-async function downloadDXF(sheetIndex) {
-  if (!lastJob) return;
-  log('Generating DXF for sheet ' + sheetIndex + '...', 'i');
-  try {
-    const resp = await fetch(API + '/api/export/dxf/' + sheetIndex, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({job: lastJob})
-    });
-    if (!resp.ok) throw new Error(await resp.text());
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const d = lastJob.drawings[sheetIndex];
-    a.download = (d?.sheet_number||'sheet').replace(/\s+/g,'_') + '_' + (d?.sheet_type||'drawing').replace(/\s+/g,'_') + '.dxf';
-    a.click();
-    URL.revokeObjectURL(url);
-    log('DXF downloaded: ' + (d?.sheet_number||''), 's');
-    toast('DXF downloaded: ' + (d?.sheet_number||'sheet'), 'ok');
-  } catch(e) { toast('DXF export failed: ' + e.message, 'err'); log(e.message,'e'); }
-}
-
-async function downloadPackage() {
-  if (!lastJob) return;
-  const btn = document.getElementById('btnZip');
-  if (btn) btn.classList.add('exporting');
-  log('Building full export package (PDF + DXF + manifest)...', 'n');
-  try {
-    const resp = await fetch(API + '/api/export/package', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({job: lastJob})
-    });
-    if (!resp.ok) throw new Error(await resp.text());
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = (lastJob.project_name||'project').replace(/\s+/g,'_') + '_construction_set.zip';
-    a.click();
-    URL.revokeObjectURL(url);
-    log('Package downloaded: PDF + ' + lastJob.drawing_count + ' DXF sheets + manifest', 's');
-    toast('Construction package downloaded (' + lastJob.drawing_count + ' sheets)', 'nim');
-  } catch(e) { toast('Package export failed: ' + e.message, 'err'); log(e.message,'e'); }
-  finally { if (btn) btn.classList.remove('exporting'); }
-}
-
-
-// ── Main tab switcher ─────────────────────────────────────────────────────
-function mainTab(name, btn) {
-  // Only toggle the main-area tabs, not the sidebar tabs
-  btn.parentElement.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  ['results','floorplan'].forEach(n => {
-    const p = document.getElementById('mainPanel-' + n);
-    if (p) p.style.display = n === name ? 'block' : 'none';
-  });
-}
-
-// ── Floor Plan Generator ──────────────────────────────────────────────────
-let fpData = null;
-
-async function generateFloorPlan() {
-  const desc = document.getElementById('fpDesc').value.trim();
-  if (!desc || desc.length < 10) { toast('Describe your floor plan first','err'); return; }
-
-  const btn = document.getElementById('fpBtn');
-  btn.disabled = true;
-  document.getElementById('fpStatus').textContent = 'Parsing description…';
-  document.getElementById('fpResult').style.display = 'none';
-  log('Generating floor plan from description…','n');
-
-  try {
-    const body = {
-      description:   desc,
-      project_name:  document.getElementById('fpName').value || 'My Project',
-      building_type: radio('fpBtg'),
-      primary_code:  document.getElementById('fpCode').value,
-      jurisdiction:  document.getElementById('fpJur').value,
-      api_key:       document.getElementById('fpKey').value,
-    };
-    document.getElementById('fpStatus').textContent = body.api_key ? 'LLM parsing rooms (Llama 3.1)…' : 'Keyword parsing rooms…';
-
-    const resp = await fetch(API+'/api/generate/floorplan',{
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
-    });
-    if (!resp.ok) { const e=await resp.json(); throw new Error(e.detail||'Generation failed'); }
-    const data = await resp.json();
-    fpData = data;
-    renderFloorPlan(data);
-    log(`Floor plan: ${data.room_count} rooms, ${data.total_sqft?.toFixed(0)} SF, ${data.building_w_ft?.toFixed(0)}x${data.building_d_ft?.toFixed(0)}ft`,'s');
-    toast(`Floor plan generated – ${data.room_count} rooms, ${data.total_sqft?.toFixed(0)} SF`,'nim');
-    document.getElementById('fpStatus').textContent = `✓ ${data.room_count} rooms · ${data.total_sqft?.toFixed(0)} SF · ${data.building_w_ft?.toFixed(0)}×${data.building_d_ft?.toFixed(0)} ft  (${data.parser_mode} parser)`;
-  } catch(e) {
-    toast(e.message,'err'); log(e.message,'e');
-    document.getElementById('fpStatus').textContent = '✗ ' + e.message;
-  } finally { btn.disabled = false; }
-}
-
-function renderFloorPlan(data) {
-  // Stats bar
-  document.getElementById('fpStats').innerHTML = [
-    ['Rooms', data.room_count],
-    ['Total SF', data.total_sqft?.toFixed(0)],
-    ['Occupants', data.occupant_load],
-    ['Building', `${data.building_w_ft?.toFixed(0)}×${data.building_d_ft?.toFixed(0)} ft`],
-    ['Parser', data.parser_mode],
-  ].map(([l,v]) => `<div class="fp-stat"><div class="n">${v}</div><div class="l">${l}</div></div>`).join('');
-
-  // SVG
-  document.getElementById('fpSvgWrap').innerHTML = data.svg_data || '<p>No SVG generated</p>';
-
-  // Room cards
-  document.getElementById('fpRoomsGrid').innerHTML = (data.rooms||[]).map(r =>
-    `<div class="fp-room-card">
-      <div class="fp-room-name">${escHtml(r.name)}</div>
-      <div class="fp-room-sf">${r.sqft?.toFixed(0)} SF</div>
-      <div class="fp-room-meta">${r.width_ft?.toFixed(0)}×${r.depth_ft?.toFixed(0)} ft · ${r.zone}</div>
-      ${r.occupant_load>0 ? `<div class="fp-room-meta">${r.occupant_load} occupants</div>` : ''}
-    </div>`
-  ).join('');
-
-  document.getElementById('fpResult').style.display = 'block';
-
-  // Warnings
-  if (data.warnings?.length) {
-    data.warnings.forEach(w => toast(w,'info'));
+// ── Fallback meta ─────────────────────────────────────────────────────────
+const FALLBACK = {
+  building_types: ['Commercial','Residential'],
+  occupancy_groups: {
+    Commercial: ['A-1','A-2','A-3','A-4','A-5','B','E','F-1','F-2','H-1','H-2','H-3','H-4','H-5','I-1','I-2','I-3','I-4','M','S-1','S-2','U'],
+    Residential: ['R-1','R-2','R-3','R-4']
+  },
+  construction_types: ['Type I-A','Type I-B','Type II-A','Type II-B','Type III-A','Type III-B','Type IV-HT','Type IV-A','Type IV-B','Type IV-C','Type V-A','Type V-B'],
+  code_versions: ['IBC 2023','IBC 2021','IBC 2018','CBC 2022','NFPA 5000'],
+  drawing_sets: ['Site Plan','Floor Plan','Exterior Elevations','Building Sections','Architectural Details','Structural Drawings','MEP Drawings','Fire & Life Safety','Accessibility Plan','Full Construction Set'],
+  engine_providers: ['Anthropic Claude','NVIDIA Picasso','OpenAI GPT-4o','Mock Engine (Testing)'],
+  jurisdiction_presets: ['New York City, NY','Los Angeles, CA','Chicago, IL','Houston, TX','Miami, FL','Seattle, WA','Phoenix, AZ','Denver, CO','Custom / Manual Entry'],
+  jurisdiction_details: {
+    'Chicago, IL': {adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'B',wind_speed_mph:90,local_amendments:['Chicago Building Code']},
+    'Los Angeles, CA': {adopted_building_code:'CBC 2022',adopted_fire_code:'CFC 2022',seismic_design_category:'D',wind_speed_mph:95,local_amendments:['LA Green Building Code']},
+    'New York City, NY': {adopted_building_code:'IBC 2021',adopted_fire_code:'NYCFC 2022',seismic_design_category:'B',wind_speed_mph:115,local_amendments:['NYC Building Code 2022']},
+    'Miami, FL': {adopted_building_code:'IBC 2023',adopted_fire_code:'FBC 2023',seismic_design_category:'A',wind_speed_mph:175,flood_zone:'VE',local_amendments:['FBC 2023']},
+    'Houston, TX': {adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'A',wind_speed_mph:130,flood_zone:'AE',local_amendments:[]},
+    'Seattle, WA': {adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'D',wind_speed_mph:85,local_amendments:['Seattle Building Code']},
+    'Phoenix, AZ': {adopted_building_code:'IBC 2018',adopted_fire_code:'IFC 2018',seismic_design_category:'C',wind_speed_mph:90,local_amendments:[]},
+    'Denver, CO': {adopted_building_code:'IBC 2021',adopted_fire_code:'IFC 2021',seismic_design_category:'B',wind_speed_mph:105,local_amendments:['Denver Building Code']},
+    'Custom / Manual Entry': {adopted_building_code:'IBC 2023',adopted_fire_code:'IFC 2023',seismic_design_category:'B',wind_speed_mph:null,local_amendments:[]},
   }
-}
-
-function downloadFpSvg() {
-  if (!fpData?.svg_data) return;
-  const blob = new Blob([fpData.svg_data], {type:'image/svg+xml'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = (fpData.project_name||'floorplan').replace(/\s+/g,'_') + '_A1.0.svg';
-  a.click(); URL.revokeObjectURL(a.href);
-  toast('SVG downloaded','ok');
-}
-
-function downloadFpDxf() {
-  if (!fpData?.dxf_b64) return;
-  const bytes = Uint8Array.from(atob(fpData.dxf_b64), c => c.charCodeAt(0));
-  const blob = new Blob([bytes], {type:'application/dxf'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = (fpData.project_name||'floorplan').replace(/\s+/g,'_') + '_A1.0.dxf';
-  a.click(); URL.revokeObjectURL(a.href);
-  toast('DXF downloaded (AutoCAD compatible)','ok');
-}
+};
 
 boot();
 </script>
