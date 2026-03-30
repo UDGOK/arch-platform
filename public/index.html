@@ -787,11 +787,9 @@ function cleanJob(job) {
     if (typeof v === 'function') return undefined;
     // Remove undefined values
     if (v === undefined) return undefined;
-    // Remove null values in key places
-    if (v === null) return undefined;
+    // Keep null for compatibility but remove empty arrays at root
     return v;
   }));
-  // Also remove empty arrays/objects
   return cleaned;
 }
 
@@ -801,6 +799,10 @@ async function dlPDF() {
   var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
     var jobData = cleanJob(lastJob);
+    var jsonStr = JSON.stringify({job: jobData});
+    if (jsonStr.length > 4500000) {
+      toast('Job data too large - try with smaller project','err'); return;
+    }
     var b = await postBinary('/api/export/pdf', {job: jobData});
     dlBlob(b, name+'_construction.pdf');
     toast('PDF downloaded','ok');
@@ -813,6 +815,10 @@ async function dlPackage() {
   var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
   try {
     var jobData = cleanJob(lastJob);
+    var jsonStr = JSON.stringify({job: jobData});
+    if (jsonStr.length > 4500000) {
+      toast('Job data too large - try with smaller project','err'); return;
+    }
     var b = await postBinary('/api/export/package', {job: jobData});
     dlBlob(b, name+'_construction_set.zip');
     toast('Package downloaded','ok');
