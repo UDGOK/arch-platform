@@ -554,6 +554,21 @@ from fastapi.responses import Response as FastAPIResponse
 
 
 
+
+
+@app.post("/api/debug/pdf-nim")
+def debug_pdf_nim(req: ExportRequest):
+    """Test PDF export with NIM-style job data."""
+    import traceback
+    try:
+        from export_engine import PDFExporter
+        pdf_bytes = PDFExporter(req.job).generate()
+        return {"status": "ok", "pdf_size": len(pdf_bytes)}
+    except Exception as exc:
+        tb = traceback.format_exc()
+        logger.error(f"Debug NIM PDF error: {exc}\n{tb}")
+        return {"status": "error", "error": str(exc), "type": type(exc).__name__, "traceback": tb}
+
 @app.get("/api/debug/pdf-test")
 def debug_pdf_test():
     """Test if PDF generation works with minimal data."""
