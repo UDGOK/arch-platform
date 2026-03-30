@@ -783,6 +783,8 @@ function cleanJob(job) {
   var cleaned = JSON.parse(JSON.stringify(job, function(k, v) {
     // Remove large base64 strings (images are regenerated for PDF)
     if (k === 'image_b64' || k === 'preview_image_b64') return undefined;
+    // Remove models_used - contains null values that cause export failures
+    if (k === 'models_used') return undefined;
     // Remove functions
     if (typeof v === 'function') return undefined;
     // Remove undefined values
