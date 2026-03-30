@@ -36,6 +36,7 @@ from models import (
     EngineProvider, GenerationJob, OccupancyGroup, ProjectSpecification,
 )
 from orchestrator import EngineDispatcher, EngineRegistry, MockDrawingEngine
+from supabase_client import save_job, get_job as get_job_from_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -340,6 +341,8 @@ def dispatch_nim(req: DispatchRequest):
         "job_id": spec.project_id,
     }
     _job_store[spec.project_id] = result
+    # Persist to Supabase for reliability
+    save_job(spec.project_id, result, result.get("project_name", ""))
     return result
 
 
@@ -404,9 +407,15 @@ def nim_models():
 
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
-    if job_id not in _job_store:
-        raise HTTPException(404, detail=f"Job '{job_id}' not found.")
-    return _job_store[job_id]
+    # Try in-memory store first
+    if job_id in _job_store:
+        return _job_store[job_id]
+    # Try Supabase
+    job = get_job_from_db(job_id)
+    if job:
+        _job_store[job_id] = job  # Cache in memory
+        return job
+    raise HTTPException(404, detail=f"Job '{job_id}' not found.")
 
 
 @app.get("/api/jobs")
@@ -608,9 +617,14 @@ def export_package(req: ExportRequest):
 @app.get("/api/export/{job_id}/pdf")
 def export_pdf_by_id(job_id: str):
     """Export PDF by job ID (avoids large request body)."""
-    if job_id not in _job_store:
-        raise HTTPException(404, detail=f"Job {job_id} not found")
-    job = _job_store[job_id]
+    # Try in-memory store first
+    if job_id in _job_store:
+        job = _job_store[job_id]
+    else:
+        # Try Supabase
+        job = get_job_from_db(job_id)
+        if not job:
+            raise HTTPException(404, detail=f"Job {job_id} not found")
     try:
         from export_engine import PDFExporter
         pdf_bytes = PDFExporter(job).generate()
@@ -627,9 +641,14 @@ def export_pdf_by_id(job_id: str):
 @app.get("/api/export/{job_id}/package")
 def export_package_by_id(job_id: str):
     """Export ZIP package by job ID (avoids large request body)."""
-    if job_id not in _job_store:
-        raise HTTPException(404, detail=f"Job {job_id} not found")
-    job = _job_store[job_id]
+    # Try in-memory store first
+    if job_id in _job_store:
+        job = _job_store[job_id]
+    else:
+        # Try Supabase
+        job = get_job_from_db(job_id)
+        if not job:
+            raise HTTPException(404, detail=f"Job {job_id} not found")
     try:
         from export_engine import build_export_package
         pkg = build_export_package(job)

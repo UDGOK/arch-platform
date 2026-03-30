@@ -799,32 +799,48 @@ async function dlPDF() {
   if (!lastJob) { toast('Generate drawings first','err'); return; }
   toast('Generating PDF...','info');
   var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
+  var jobId = lastJob.job_id || lastJob.id;
   try {
-    var jobData = cleanJob(lastJob);
-    var jsonStr = JSON.stringify({job: jobData});
-    if (jsonStr.length > 4500000) {
-      toast('Job data too large - try with smaller project','err'); return;
-    }
-    var b = await postBinary('/api/export/pdf', {job: jobData});
+    // Try job_id-based export first (more reliable with Supabase)
+    var b = await postBinary('/api/export/' + encodeURIComponent(jobId) + '/pdf');
     dlBlob(b, name+'_construction.pdf');
     toast('PDF downloaded','ok');
-  } catch(e) { toast('PDF failed: ' + e.message,'err'); log('PDF: '+e.message,'e'); }
+  } catch(e) { 
+    // Fallback to body-based export
+    try {
+      var jobData = cleanJob(lastJob);
+      var b = await postBinary('/api/export/pdf', {job: jobData});
+      dlBlob(b, name+'_construction.pdf');
+      toast('PDF downloaded','ok');
+    } catch(e2) { 
+      toast('PDF failed: ' + e2.message,'err'); 
+      log('PDF: '+e2.message,'e'); 
+    }
+  }
 }
 
 async function dlPackage() {
   if (!lastJob) { toast('Generate drawings first','err'); return; }
   toast('Building package...','info');
   var name = (lastJob.project_name||'project').replace(/\s+/g,'_');
+  var jobId = lastJob.job_id || lastJob.id;
   try {
-    var jobData = cleanJob(lastJob);
-    var jsonStr = JSON.stringify({job: jobData});
-    if (jsonStr.length > 4500000) {
-      toast('Job data too large - try with smaller project','err'); return;
-    }
-    var b = await postBinary('/api/export/package', {job: jobData});
+    // Try job_id-based export first (more reliable with Supabase)
+    var b = await postBinary('/api/export/' + encodeURIComponent(jobId) + '/package');
     dlBlob(b, name+'_construction_set.zip');
     toast('Package downloaded','ok');
-  } catch(e) { toast('Package failed: ' + e.message,'err'); log('Package: '+e.message,'e'); }
+  } catch(e) { 
+    // Fallback to body-based export
+    try {
+      var jobData = cleanJob(lastJob);
+      var b = await postBinary('/api/export/package', {job: jobData});
+      dlBlob(b, name+'_construction_set.zip');
+      toast('Package downloaded','ok');
+    } catch(e2) { 
+      toast('Package failed: ' + e2.message,'err'); 
+      log('Package: '+e2.message,'e'); 
+    }
+  }
 }
 
 function dlBlob(blob, filename) {
