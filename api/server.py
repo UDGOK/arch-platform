@@ -337,6 +337,7 @@ def dispatch_nim(req: DispatchRequest):
             "models_used":   d.metadata.get("models_used", {}),
         } for d in nim.drawings],
         "drawing_count": len(nim.drawings),
+        "job_id": spec.project_id,
     }
     _job_store[spec.project_id] = result
     return result
@@ -924,3 +925,4 @@ def generate_floorplan(req: FloorPlanRequest):
         "warnings":       fp.warnings,
         "program":        fp.program,
     }
+
