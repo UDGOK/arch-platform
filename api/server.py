@@ -550,12 +550,14 @@ class ExportRequest(BaseModel):
 @app.post("/api/export/pdf")
 def export_pdf(req: ExportRequest):
     """Generate permit-ready PDF from completed job. Returns application/pdf."""
+    import traceback
     try:
         from export_engine import PDFExporter
         pdf_bytes = PDFExporter(req.job).generate()
     except Exception as exc:
-        logger.exception("PDF export error")
-        raise HTTPException(500, detail=f"PDF export failed: {exc}")
+        tb = traceback.format_exc()
+        logger.error(f"PDF export error: {exc}\n{tb}")
+        raise HTTPException(500, detail=f"PDF export failed: {exc.__class__.__name__}: {exc}")
     project = req.job.get("project_name","project").replace(" ","_")[:40]
     return FastAPIResponse(
         content=pdf_bytes, media_type="application/pdf",
@@ -585,12 +587,14 @@ def export_dxf_sheet(sheet_index: int, req: ExportRequest):
 @app.post("/api/export/package")
 def export_package(req: ExportRequest):
     """Generate ZIP with PDF + all DXF sheets + manifest.json."""
+    import traceback
     try:
         from export_engine import build_export_package
         zip_bytes = build_export_package(req.job)
     except Exception as exc:
-        logger.exception("Package export error")
-        raise HTTPException(500, detail=f"Package export failed: {exc}")
+        tb = traceback.format_exc()
+        logger.error(f"Package export error: {exc}\n{tb}")
+        raise HTTPException(500, detail=f"Package export failed: {exc.__class__.__name__}: {exc}")
     project = req.job.get("project_name","project").replace(" ","_")[:40]
     return FastAPIResponse(
         content=zip_bytes, media_type="application/zip",
