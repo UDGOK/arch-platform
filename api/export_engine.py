@@ -235,96 +235,155 @@ def _layout(rooms: List[Dict]) -> Tuple[List[Dict], float, float]:
 
 def _title_block(c: rl_canvas.Canvas, job: Dict, sheet_num: str,
                  sheet_title: str, scale_str: str, total: int):
-    """Draw AIA-style title block."""
-    # Background
-    c.setFillColor(C_TBKG)
+    """Premium architectural title block - world-class firm aesthetic."""
+    # Deep navy background
+    c.setFillColor(HexColor('#0d1b2a'))
     c.rect(0, 0, PW, TB_H, fill=1, stroke=0)
 
-    # Outer border
-    c.setStrokeColor(HexColor('#2a4a6a'))
-    c.setLineWidth(1.5)
-    c.rect(0, 0, PW, TB_H, fill=0, stroke=1)
+    # Gold accent stripe at top
+    c.setFillColor(HexColor('#c9a227'))
+    c.rect(0, TB_H - 5, PW, 5, fill=1, stroke=0)
 
-    # Column dividers
-    cols = [BDR_L + 0.25*inch,
-            PW * 0.38, PW * 0.56,
-            PW * 0.70, PW * 0.82,
-            PW - 2.8*inch]
-    c.setStrokeColor(HexColor('#2a4a6a'))
-    c.setLineWidth(1.0)
-    for x in cols[1:]:
-        c.line(x, 0, x, TB_H)
+    # Left firm branding area
+    c.setFillColor(HexColor('#e8e8e8'))
+    c.setFont('Helvetica-Bold', 14)
+    c.drawString(BDR_L + 10, TB_H - 28, 'ARCHITECTURAL AI PLATFORM')
+    c.setFillColor(HexColor('#8b9dc3'))
+    c.setFont('Helvetica', 7)
+    c.drawString(BDR_L + 10, TB_H - 40, 'INTELLIGENT DESIGN SOLUTIONS')
 
-    # ── Col 1: Practice + Project ──
-    x0 = 8
-    c.setFillColor(HexColor('#8ab4d4'))
-    c.setFont('Helvetica', 6.5)
-    c.drawString(x0, TB_H - 14, 'ARCHITECTURAL AI PLATFORM  ·  ' + _yr())
-    c.setFont('Helvetica-Bold', 12)
-    c.setFillColor(C_WHT)
+    # Divider
+    c.setStrokeColor(HexColor('#2d3e50'))
+    c.setLineWidth(0.75)
+    c.line(BDR_L + 10, TB_H - 48, BDR_L + 260, TB_H - 48)
+
+    # Project name
     pname = job.get('project_name', 'Project')
-    c.drawString(x0, TB_H * 0.60, pname[:38])
-    c.setFont('Helvetica', 8)
-    c.setFillColor(C_TSUB)
+    c.setFillColor(HexColor('#ffffff'))
+    c.setFont('Helvetica-Bold', 13)
+    c.drawString(BDR_L + 10, TB_H - 68, pname[:42])
+
+    # Jurisdiction & code
+    c.setFillColor(HexColor('#8b9dc3'))
+    c.setFont('Helvetica', 7.5)
     jur = job.get('jurisdiction_preset', job.get('jurisdiction',''))
-    c.drawString(x0, TB_H * 0.42, jur)
-    c.drawString(x0, TB_H * 0.25, job.get('primary_code','IBC 2023') + '  ·  ' + job.get('building_type','Commercial'))
+    if jur:
+        c.drawString(BDR_L + 10, TB_H - 82, jur)
+    code_info = f"{job.get('primary_code','IBC 2023')}  |  {job.get('building_type','Commercial')}"
+    c.drawString(BDR_L + 10, TB_H - 94, code_info)
 
-    # ── Col 2: Drawing title + scale ──
-    x0 = cols[1] + 8
-    c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
-    c.drawString(x0, TB_H - 14, 'DRAWING TITLE')
-    c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 11)
-    c.drawString(x0, TB_H * 0.60, sheet_title[:32])
-    c.setFont('Helvetica', 8); c.setFillColor(C_TSUB)
-    c.drawString(x0, TB_H * 0.40, 'SCALE:  ' + scale_str)
-    c.drawString(x0, TB_H * 0.23, 'DATE:   ' + _now())
+    # Vertical column dividers
+    col_x = [BDR_L + 290, BDR_L + 500, BDR_L + 700, BDR_L + 880, PW - 1.8*inch]
+    c.setStrokeColor(HexColor('#2d3e50'))
+    c.setLineWidth(0.5)
+    for x in col_x:
+c.line(x, 5, x, TB_H - 5)
 
-    # ── Col 3: Building info ──
-    x0 = cols[2] + 8
-    c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
+    # ── Column 2: Drawing Info ──
+    x0 = col_x[0] + 10
+    c.setFillColor(HexColor('#c9a227'))
+    c.setFont('Helvetica', 6.5)
+    c.drawString(x0, TB_H - 20, 'DRAWING')
+    c.setFillColor(HexColor('#8b9dc3'))
+    c.setFont('Helvetica', 7)
+    c.drawString(x0, TB_H - 30, scale_str if scale_str else 'N/A')
+    
+    # Sheet title (wrap if long)
+    c.setFillColor(HexColor('#ffffff'))
+    c.setFont('Helvetica-Bold', 11)
+    words = sheet_title.split()
+    lines = []
+    current = ""
+    for w in words:
+        test = (current + " " + w).strip()
+        if c.stringWidth(test, 'Helvetica-Bold', 11) < 170:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+            current = w
+    if current:
+        lines.append(current)
+    y = TB_H - 52
+    for ln in lines[:2]:
+        c.drawString(x0, y, ln)
+        y -= 14
+
+    # Date
+    c.setFillColor(HexColor('#8b9dc3'))
+    c.setFont('Helvetica', 7.5)
+    c.drawString(x0, TB_H - 95, _now())
+
+    # ── Column 3: Building Data ──
+    x0 = col_x[1] + 10
+    c.setFillColor(HexColor('#c9a227'))
+    c.setFont('Helvetica', 6.5)
+    c.drawString(x0, TB_H - 20, 'BUILDING DATA')
+
     r = job.get('compliance_report', {})
-    items = [
-        ('OCCUPANCY', job.get('occupancy_group','B')),
-        ('CONSTRUCTION', (job.get('construction_type','') or '')[:14]),
-        ('SUPPRESSION', 'Sprinklered' if job.get('sprinklered') else 'Non-Spr.'),
+    data = [
+        ('OCCUPANCY', job.get('occupancy_group', 'B')),
+        ('TYPE', (job.get('construction_type', '') or 'VB')[:14]),
+        ('SPRINKLER', 'Sprinklered' if job.get('sprinklered') else 'Unprotected'),
+        ('STORIES', str(job.get('num_stories', 1))),
     ]
-    for i, (lbl, val) in enumerate(items):
-        y = TB_H * 0.78 - i * (TB_H * 0.27)
-        c.drawString(x0, y, lbl)
-        c.setFillColor(C_WHT); c.setFont('Helvetica-Bold', 8)
-        c.drawString(x0, y - 12, val)
-        c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
+    y = TB_H - 40
+    for label, val in data:
+        c.setFillColor(HexColor('#8b9dc3'))
+        c.setFont('Helvetica', 6)
+        c.drawString(x0, y, label)
+        c.setFillColor(HexColor('#ffffff'))
+        c.setFont('Helvetica', 7.5)
+        c.drawString(x0, y - 10, val[:16])
+        y -= 24
 
-    # ── Col 4: Compliance ──
-    x0 = cols[3] + 8
+    # ── Column 4: Compliance Status ──
+    x0 = col_x[2] + 10
     compliant = r.get('is_compliant', True)
-    c.setFillColor(C_GRN if compliant else C_RED)
+    
+    # Status badge
+    badge_color = C_GRN if compliant else C_RED
+    c.setFillColor(badge_color)
+    c.roundRect(x0, TB_H - 78, 130, 26, 3, fill=1, stroke=0)
+    c.setFillColor(HexColor('#ffffff'))
     c.setFont('Helvetica-Bold', 9)
-    c.drawString(x0, TB_H * 0.68, '✓ COMPLIANT' if compliant else '✗ NON-COMPLIANT')
-    c.setFont('Helvetica', 7.5); c.setFillColor(C_TSUB)
-    c.drawString(x0, TB_H * 0.48, f"Errors:   {r.get('blocking_count',0)}")
-    c.drawString(x0, TB_H * 0.33, f"Warnings: {r.get('warning_count',0)}")
-    c.drawString(x0, TB_H * 0.18, 'IBC RULE CHECK')
+    status = 'IBC COMPLIANT' if compliant else 'NON-COMPLIANT'
+    c.drawCentredString(x0 + 65, TB_H - 62, status)
 
-    # ── Col 5: Revisions ──
-    x0 = cols[4] + 8
-    c.setFillColor(C_TSUB); c.setFont('Helvetica', 6.5)
-    c.drawString(x0, TB_H - 14, 'REV  DATE         DESCRIPTION')
-    c.setFillColor(C_WHT); c.setFont('Helvetica', 7.5)
-    c.drawString(x0, TB_H * 0.60, f'01   {_now()}   Issued for Permit')
+    # Counts
+    c.setFillColor(HexColor('#8b9dc3'))
+    c.setFont('Helvetica', 7)
+    c.drawString(x0, TB_H - 94, f"Issues: {r.get('blocking_count', 0)}")
+    c.drawString(x0, TB_H - 105, f"Warnings: {r.get('warning_count', 0)}")
+    c.setFillColor(HexColor('#5d6d7e'))
+    c.setFont('Helvetica', 6)
+    c.drawString(x0, TB_H - 118, job.get('primary_code', 'IBC 2023'))
 
-    # ── Col 6: Sheet number ──
-    x0 = cols[5]
-    sw  = PW - x0
-    c.setFillColor(HexColor('#0a1f35'))
-    c.rect(x0, 0, sw, TB_H, fill=1, stroke=0)
-    c.setFillColor(C_TSUB); c.setFont('Helvetica', 7)
-    c.drawCentredString(x0 + sw/2, TB_H - 14, 'SHEET NUMBER')
-    c.setFillColor(C_TACC); c.setFont('Helvetica-Bold', 32)
-    c.drawCentredString(x0 + sw/2, TB_H * 0.38, sheet_num)
-    c.setFont('Helvetica', 8); c.setFillColor(C_TSUB)
-    c.drawCentredString(x0 + sw/2, TB_H * 0.17, f'of {total}')
+    # ── Column 5: Sheet Number (right panel) ──
+    x0 = col_x[3] + 8
+    pw = PW - x0 - 8
+    c.setFillColor(HexColor('#1b2838'))
+    c.roundRect(x0, 6, pw, TB_H - 12, 5, fill=1, stroke=0)
+    
+    c.setFillColor(HexColor('#c9a227'))
+    c.setFont('Helvetica', 7.5)
+    c.drawCentredString(x0 + pw/2, TB_H - 24, 'SHEET')
+    
+    c.setFillColor(HexColor('#ffffff'))
+    c.setFont('Helvetica-Bold', 34)
+    c.drawCentredString(x0 + pw/2, TB_H - 64, sheet_num)
+    
+    c.setFillColor(HexColor('#8b9dc3'))
+    c.setFont('Helvetica', 9)
+    c.drawCentredString(x0 + pw/2, TB_H - 84, f"of {total}")
+    
+    c.setFont('Helvetica', 6.5)
+    c.drawCentredString(x0 + pw/2, 18, f"Rev.01  {_now()}")
+
+    # Bottom gold accent
+    c.setStrokeColor(HexColor('#c9a227'))
+    c.setLineWidth(1.5)
+    c.line(0, 0, PW, 0)
 
 
 def _border(c: rl_canvas.Canvas):
