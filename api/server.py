@@ -608,7 +608,8 @@ def export_pdf(req: ExportRequest):
         tb = traceback.format_exc()
         logger.error(f"PDF export error: {exc}\n{tb}")
         raise HTTPException(500, detail=f"PDF export failed: {exc.__class__.__name__}: {exc}")
-    project = req.job.get("project_name","project").replace(" ","_")[:40]
+    raw_name = req.job.get('project_name','project')
+    project = ''.join(c if ord(c) < 128 else '_' for c in raw_name).replace(' ','_')[:40]
     return FastAPIResponse(
         content=pdf_bytes, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{project}_construction_documents.pdf"'},
@@ -624,6 +625,7 @@ def export_dxf_sheet(sheet_index: int, req: ExportRequest):
         sheet_names = list(sheets.keys())
         idx = min(sheet_index, len(sheet_names)-1)
         fname = sheet_names[idx]
+        fname = ''.join(c if ord(c) < 128 else '_' for c in fname)
         dxf_bytes = sheets[fname]
     except Exception as exc:
         logger.exception("DXF export error")
@@ -645,7 +647,8 @@ def export_package(req: ExportRequest):
         tb = traceback.format_exc()
         logger.error(f"Package export error: {exc}\n{tb}")
         raise HTTPException(500, detail=f"Package export failed: {exc.__class__.__name__}: {exc}")
-    project = req.job.get("project_name","project").replace(" ","_")[:40]
+    raw_name = req.job.get('project_name','project')
+    project = ''.join(c if ord(c) < 128 else '_' for c in raw_name).replace(' ','_')[:40]
     return FastAPIResponse(
         content=zip_bytes, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{project}_construction_set.zip"'},
@@ -672,7 +675,8 @@ def export_pdf_by_id(job_id: str):
     except Exception as exc:
         logger.exception("PDF export error")
         raise HTTPException(500, detail=f"PDF export failed: {exc}")
-    project = job.get("project_name","project").replace(" ","_")[:40]
+    raw_name = job.get('project_name','project')
+    project = ''.join(c if ord(c) < 128 else '_' for c in raw_name).replace(' ','_')[:40]
     return FastAPIResponse(
         content=pdf_bytes, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{project}_construction.pdf"'},
@@ -696,7 +700,8 @@ def export_package_by_id(job_id: str):
     except Exception as exc:
         logger.exception("Package export error")
         raise HTTPException(500, detail=f"Package export failed: {exc}")
-    project = job.get("project_name","project").replace(" ","_")[:40]
+    raw_name = job.get('project_name','project')
+    project = ''.join(c if ord(c) < 128 else '_' for c in raw_name).replace(' ','_')[:40]
     return FastAPIResponse(
         content=pkg, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{project}_construction_set.zip"'},
