@@ -168,6 +168,8 @@ textarea{resize:vertical;min-height:55px}
 .modal.on{display:flex}
 .modal img{max-width:90vw;max-height:85vh;border-radius:12px}
 .modal-x{position:fixed;top:14px;right:18px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;width:34px;height:34px;border-radius:50%;cursor:pointer;display:grid;place-items:center}
+/* Feature badges */
+.fbadge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;font-size:.68rem;font-weight:700;background:rgba(34,197,94,.12);color:var(--grn);border:1px solid rgba(34,197,94,.25);margin-left:5px}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px}
 </style>
@@ -205,9 +207,11 @@ textarea{resize:vertical;min-height:55px}
 
     <div class="fg"><label>Occupancy Group</label><select id="og"></select></div>
     <div class="fg"><label>Construction Type</label><select id="ct"></select></div>
+    
     <div class="sh">Jurisdiction</div>
     <div class="fg"><label>Preset</label><select id="jur" onchange="onJur()"></select></div>
     <div class="ji" id="jurInfo">Loading&#8230;</div>
+    
     <div class="sh">Parameters</div>
     <div class="fg"><label>Gross Area (sq ft)</label><input type="number" id="sqft" placeholder="e.g. 25000"/></div>
     <div class="r2">
@@ -220,6 +224,20 @@ textarea{resize:vertical;min-height:55px}
         <div class="tg" id="spTg"></div>
         <span id="spLbl" style="font-size:.8rem">Not Sprinklered</span>
       </div>
+    </div>
+
+    <div class="sh">ADA & Accessibility</div>
+    <div class="fg"><label>ADA Compliance</label>
+      <div class="trow" onclick="toggleADA()">
+        <div class="tg on" id="adaTg"></div>
+        <span id="adaLbl" style="font-size:.8rem">Full ADA Compliance</span>
+      </div>
+    </div>
+    <div class="fg" id="adaOptions" style="font-size:.72rem;color:var(--txt3);padding:6px 10px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r)">
+      <div style="margin-bottom:3px">&#10003; 60" corridor width</div>
+      <div style="margin-bottom:3px">&#10003; 60" turning circles</div>
+      <div style="margin-bottom:3px">&#10003; 32" door clearances</div>
+      <div>&#10003; 18" strike-side clearance</div>
     </div>
 
     <div class="sh">Upload Drawing (optional)</div>
@@ -249,6 +267,47 @@ textarea{resize:vertical;min-height:55px}
     </div>
 
     <div class="cg" id="drawGrid"></div>
+
+    <div class="sh" style="margin-top:8px">Professional Symbols</div>
+    <div class="cg">
+      <div class="ci on" id="sym-doors" onclick="toggleCi(this)">
+        <div class="ck">&#10003;</div><span>Door Swings</span>
+      </div>
+      <div class="ci on" id="sym-windows" onclick="toggleCi(this)">
+        <div class="ck">&#10003;</div><span>Window Mullions</span>
+      </div>
+      <div class="ci on" id="sym-stairs" onclick="toggleCi(this)">
+        <div class="ck">&#10003;</div><span>Stair Symbols</span>
+      </div>
+      <div class="ci on" id="sym-elevators" onclick="toggleCi(this)">
+        <div class="ck">&#10003;</div><span>Elevators</span>
+      </div>
+      <div class="ci on" id="sym-ada" onclick="toggleCi(this)">
+        <div class="ck">&#10003;</div><span>ADA Icons</span>
+      </div>
+      <div class="ci on" id="sym-fire" onclick="toggleCi(this)">
+        <div class="ck">&#10003;</div><span>Fire Safety</span>
+      </div>
+    </div>
+
+    <div class="sh" style="margin-top:8px">Egress & Life Safety</div>
+    <div class="fg"><label>Show Egress Paths</label>
+      <div class="trow" onclick="toggleEgress()">
+        <div class="tg on" id="egressTg"></div>
+        <span id="egressLbl" style="font-size:.8rem">Egress Paths Enabled</span>
+      </div>
+    </div>
+    <div class="fg"><label>Fire Protection Elements</label>
+      <div class="trow" onclick="toggleFire()">
+        <div class="tg on" id="fireTg"></div>
+        <span id="fireLbl" style="font-size:.8rem">Fire Elements Enabled</span>
+      </div>
+    </div>
+    <div id="fireOptions" style="font-size:.72rem;color:var(--txt3);padding:6px 10px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-top:4px">
+      <div style="margin-bottom:3px">&#10003; Fire extinguishers (75 ft max)</div>
+      <div style="margin-bottom:3px">&#10003; Exit signs at all exits</div>
+      <div>&#10003; Emergency lighting</div>
+    </div>
 
     <div class="sh" style="margin-top:8px">Notes</div>
     <textarea id="notes" rows="3" placeholder="Scope notes&#8230;"></textarea>
@@ -294,8 +353,8 @@ textarea{resize:vertical;min-height:55px}
     <div class="card">
       <div class="chdr">
         <div class="cico nv">&#127970;</div>
-        <div><div class="ct">Floor Plan Generator</div>
-          <div class="cs">Text description &#8594; real dimensioned 2D floor plan + DXF</div></div>
+        <div><div class="ct">Floor Plan Generator <span class="fbadge">&#10003; IBC 2023</span></div>
+          <div class="cs">Text description &#8594; permit-ready floor plan + DXF</div></div>
       </div>
 
       <div class="fg"><label>Describe your floor plan <span class="r">*</span></label>
@@ -307,7 +366,6 @@ textarea{resize:vertical;min-height:55px}
         <div class="fg"><label>Code</label>
           <select id="fpCode"><option>IBC 2023</option><option>CBC 2022</option><option>IBC 2021</option></select>
         </div>
-
       </div>
 
       <div class="r2">
@@ -321,7 +379,61 @@ textarea{resize:vertical;min-height:55px}
         <div class="fg"><label>Jurisdiction</label><input type="text" id="fpJur" placeholder="e.g. Chicago, IL"/></div>
       </div>
 
-      <div class="fg">
+      <div class="sh" style="margin-top:8px">Building Configuration</div>
+      
+      <div class="fg"><label>Building Shape</label>
+        <div class="rg" id="fpShapeg">
+          <div class="ro on" data-v="rectangular" onclick="pickRo('fpShapeg',this)">Rectangular</div>
+          <div class="ro" data-v="L-shaped" onclick="pickRo('fpShapeg',this)">L-Shape</div>
+          <div class="ro" data-v="U-shaped" onclick="pickRo('fpShapeg',this)">U-Shape</div>
+        </div>
+      </div>
+
+      <div class="fg"><label>ADA Compliance Features</label>
+        <div class="trow" onclick="toggleFpADA()">
+          <div class="tg on" id="fpAdaTg"></div>
+          <span id="fpAdaLbl" style="font-size:.8rem">Full ADA Compliance</span>
+        </div>
+      </div>
+
+      <div id="fpAdaInfo" style="font-size:.72rem;color:var(--txt3);padding:6px 10px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-top:4px">
+        <div style="margin-bottom:3px">&#10003; 60" corridor width (44" min IBC)</div>
+        <div style="margin-bottom:3px">&#10003; 60" turning circles in rooms</div>
+        <div style="margin-bottom:3px">&#10003; 32" clear door openings</div>
+        <div>&#10003; 18" strike-side clearance</div>
+      </div>
+
+      <div class="sh" style="margin-top:8px">Egress & Life Safety</div>
+      
+      <div class="fg"><label>Show Egress Analysis</label>
+        <div class="trow" onclick="toggleFpEgress()">
+          <div class="tg on" id="fpEgressTg"></div>
+          <span id="fpEgressLbl" style="font-size:.8rem">Egress Analysis Enabled</span>
+        </div>
+      </div>
+
+      <div id="fpEgressInfo" style="font-size:.72rem;color:var(--txt3);padding:6px 10px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-top:4px">
+        <div style="margin-bottom:3px">&#10003; Travel distance limits (250 ft sprinklered)</div>
+        <div style="margin-bottom:3px">&#10003; Dead-end corridor limits (50-75 ft)</div>
+        <div style="margin-bottom:3px">&#10003; Exit quantity per occupant load</div>
+        <div>&#10003; Egress width calculation (0.2" per person)</div>
+      </div>
+
+      <div class="fg" style="margin-top:8px"><label>Professional Symbols</label>
+        <div class="trow" onclick="toggleFpSymbols()">
+          <div class="tg on" id="fpSymTg"></div>
+          <span id="fpSymLbl" style="font-size:.8rem">Professional Symbols Enabled</span>
+        </div>
+      </div>
+
+      <div id="fpSymInfo" style="font-size:.72rem;color:var(--txt3);padding:6px 10px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-top:4px">
+        <div style="margin-bottom:3px">&#10003; Door swing arcs with AIA line weights</div>
+        <div style="margin-bottom:3px">&#10003; Window symbols with mullions</div>
+        <div style="margin-bottom:3px">&#10003; Fire extinguisher locations (FE)</div>
+        <div>&#10003; Exit signs and emergency lighting</div>
+      </div>
+
+      <div class="fg" style="margin-top:8px">
         <label>NVIDIA API Key <span style="font-weight:400;color:var(--txt3)">(optional &#8211; uses keyword parser if blank)</span></label>
         <input type="password" id="fpKey" placeholder="nvapi-&#8230;"/>
       </div>
@@ -378,10 +490,17 @@ textarea{resize:vertical;min-height:55px}
 var API = 'https://arch-platform2.vercel.app';
 var META = {};
 var sprinklered = false;
+var adaCompliant = true;
+var egressEnabled = true;
+var fireEnabled = true;
+var fpAdaEnabled = true;
+var fpEgressEnabled = true;
+var fpSymbolsEnabled = true;
 var imgGenOn = true;
 var uploadedB64 = '';
 var uploadedType = 'image/jpeg';
 var selectedDrawings = new Set(['Floor Plan','Exterior Elevations','Site Plan']);
+var selectedSymbols = new Set(['doors','windows','stairs','elevators','ada','fire']);
 var lastDrawings = [];
 var lastJob = null;
 var chatHistory = [];
@@ -501,6 +620,60 @@ function toggleSp() {
   document.getElementById('spLbl').textContent = sprinklered ? 'Fully Sprinklered (NFPA 13)' : 'Not Sprinklered';
 }
 
+function toggleADA() {
+  adaCompliant = !adaCompliant;
+  document.getElementById('adaTg').classList.toggle('on', adaCompliant);
+  document.getElementById('adaLbl').textContent = adaCompliant ? 'Full ADA Compliance' : 'ADA Disabled';
+  document.getElementById('adaOptions').style.display = adaCompliant ? 'block' : 'none';
+}
+
+function toggleEgress() {
+  egressEnabled = !egressEnabled;
+  document.getElementById('egressTg').classList.toggle('on', egressEnabled);
+  document.getElementById('egressLbl').textContent = egressEnabled ? 'Egress Paths Enabled' : 'Egress Paths Disabled';
+}
+
+function toggleFire() {
+  fireEnabled = !fireEnabled;
+  document.getElementById('fireTg').classList.toggle('on', fireEnabled);
+  document.getElementById('fireLbl').textContent = fireEnabled ? 'Fire Elements Enabled' : 'Fire Elements Disabled';
+  document.getElementById('fireOptions').style.display = fireEnabled ? 'block' : 'none';
+}
+
+function toggleFpADA() {
+  fpAdaEnabled = !fpAdaEnabled;
+  document.getElementById('fpAdaTg').classList.toggle('on', fpAdaEnabled);
+  document.getElementById('fpAdaLbl').textContent = fpAdaEnabled ? 'Full ADA Compliance' : 'ADA Disabled';
+  document.getElementById('fpAdaInfo').style.display = fpAdaEnabled ? 'block' : 'none';
+}
+
+function toggleFpEgress() {
+  fpEgressEnabled = !fpEgressEnabled;
+  document.getElementById('fpEgressTg').classList.toggle('on', fpEgressEnabled);
+  document.getElementById('fpEgressLbl').textContent = fpEgressEnabled ? 'Egress Analysis Enabled' : 'Egress Analysis Disabled';
+  document.getElementById('fpEgressInfo').style.display = fpEgressEnabled ? 'block' : 'none';
+}
+
+function toggleFpSymbols() {
+  fpSymbolsEnabled = !fpSymbolsEnabled;
+  document.getElementById('fpSymTg').classList.toggle('on', fpSymbolsEnabled);
+  document.getElementById('fpSymLbl').textContent = fpSymbolsEnabled ? 'Professional Symbols Enabled' : 'Professional Symbols Disabled';
+  document.getElementById('fpSymInfo').style.display = fpSymbolsEnabled ? 'block' : 'none';
+}
+
+function toggleCi(el) {
+  var sym = el.id.replace('sym-','');
+  if (selectedSymbols.has(sym)) {
+    selectedSymbols.delete(sym);
+    el.classList.remove('on');
+    el.querySelector('.ck').textContent = '';
+  } else {
+    selectedSymbols.add(sym);
+    el.classList.add('on');
+    el.querySelector('.ck').textContent = '&#10003;';
+  }
+}
+
 function toggleDraw(el, ds) {
   if (selectedDrawings.has(ds)) {
     selectedDrawings.delete(ds);
@@ -598,6 +771,10 @@ function payload(nimMode) {
     building_height_ft: parseFloat(document.getElementById('height').value) || null,
     occupant_load: parseInt(document.getElementById('occ').value) || null,
     sprinklered: sprinklered,
+    ada_compliant: adaCompliant,
+    egress_enabled: egressEnabled,
+    fire_enabled: fireEnabled,
+    professional_symbols: Array.from(selectedSymbols),
     accessibility_standard: document.getElementById('acc').value,
     additional_notes: document.getElementById('notes').value,
     image_b64: nimMode && uploadedB64 ? uploadedB64 : null,
@@ -930,8 +1107,12 @@ async function genFP() {
       description: desc,
       project_name: document.getElementById('fpName').value || 'My Project',
       building_type: getRo('fpBtg'),
+      building_shape: getRo('fpShapeg'),
       primary_code: document.getElementById('fpCode').value,
       jurisdiction: document.getElementById('fpJur').value,
+      ada_compliant: fpAdaEnabled,
+      show_egress: fpEgressEnabled,
+      professional_symbols: fpSymbolsEnabled,
       api_key: document.getElementById('fpKey').value,
     });
     fpData = d;
