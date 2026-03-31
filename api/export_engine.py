@@ -277,7 +277,7 @@ def _title_block(c: rl_canvas.Canvas, job: Dict, sheet_num: str,
     c.setStrokeColor(HexColor('#2d3e50'))
     c.setLineWidth(0.5)
     for x in col_x:
-c.line(x, 5, x, TB_H - 5)
+        c.line(x, 5, x, TB_H - 5)
 
     # ── Column 2: Drawing Info ──
     x0 = col_x[0] + 10
