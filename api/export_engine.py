@@ -432,7 +432,7 @@ def _scale_bar(c, x, y, scale):
 
 def _dim_line(c, x1, y1, x2, y2, label, offset=18, horiz=True):
     """Dimension line with proper line weight."""
-    c.setStrokeColor(C_DIM); c.setFillColor(C_DIM); c.setLineWeight(LW_DIM)
+    c.setStrokeColor(C_DIM); c.setFillColor(C_DIM); c.setLineWidth(LW_DIM)
     if horiz:
         c.line(x1, y1-offset, x2, y1-offset)
         c.line(x1, y1, x1, y1-offset-4)
